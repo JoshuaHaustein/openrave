@@ -44,25 +44,21 @@ TransformMatrix ExtractTransformMatrix(const object& oraw)
 
 object toPyArray(const TransformMatrix& t)
 {
-    npy_intp dims[] = { 4,4};
-    PyObject *pyvalues = PyArray_SimpleNew(2,dims, sizeof(dReal)==8 ? PyArray_DOUBLE : PyArray_FLOAT);
-    dReal* pdata = (dReal*)PyArray_DATA(pyvalues);
-    pdata[0] = t.m[0]; pdata[1] = t.m[1]; pdata[2] = t.m[2]; pdata[3] = t.trans.x;
-    pdata[4] = t.m[4]; pdata[5] = t.m[5]; pdata[6] = t.m[6]; pdata[7] = t.trans.y;
-    pdata[8] = t.m[8]; pdata[9] = t.m[9]; pdata[10] = t.m[10]; pdata[11] = t.trans.z;
-    pdata[12] = 0; pdata[13] = 0; pdata[14] = 0; pdata[15] = 1;
-    return static_cast<numeric::array>(handle<>(pyvalues));
+    auto pyvalues = numpy::empty(boost::python::make_tuple(4,4), numpy::dtype::get_builtin<dReal>());
+    pyvalues[0] = t.m[0]; pyvalues[1] = t.m[1]; pyvalues[2] = t.m[2]; pyvalues[3] = t.trans.x;
+    pyvalues[4] = t.m[4]; pyvalues[5] = t.m[5]; pyvalues[6] = t.m[6]; pyvalues[7] = t.trans.y;
+    pyvalues[8] = t.m[8]; pyvalues[9] = t.m[9]; pyvalues[10] = t.m[10]; pyvalues[11] = t.trans.z;
+    pyvalues[12] = 0; pyvalues[13] = 0; pyvalues[14] = 0; pyvalues[15] = 1;
+    return pyvalues;
 }
 
 
 object toPyArray(const Transform& t)
 {
-    npy_intp dims[] = { 7};
-    PyObject *pyvalues = PyArray_SimpleNew(1,dims, sizeof(dReal)==8 ? PyArray_DOUBLE : PyArray_FLOAT);
-    dReal* pdata = (dReal*)PyArray_DATA(pyvalues);
-    pdata[0] = t.rot.x; pdata[1] = t.rot.y; pdata[2] = t.rot.z; pdata[3] = t.rot.w;
-    pdata[4] = t.trans.x; pdata[5] = t.trans.y; pdata[6] = t.trans.z;
-    return static_cast<numeric::array>(handle<>(pyvalues));
+    auto pyvalues = numpy::empty(boost::python::make_tuple(7), numpy::dtype::get_builtin<dReal>());
+    pyvalues[0] = t.rot.x; pyvalues[1] = t.rot.y; pyvalues[2] = t.rot.z; pyvalues[3] = t.rot.w;
+    pyvalues[4] = t.trans.x; pyvalues[5] = t.trans.y; pyvalues[6] = t.trans.z;
+    return pyvalues;
 }
 
 AttributesList toAttributesList(boost::python::dict odict)
@@ -938,7 +934,8 @@ public:
         object shape = rays.attr("shape");
         int num = extract<int>(shape[0]);
         if( num == 0 ) {
-            return boost::python::make_tuple(numeric::array(boost::python::list()).astype("i4"),numeric::array(boost::python::list()));
+            return boost::python::make_tuple(numpy::empty(boost::python::make_tuple(0), numpy::dtype::get_builtin<int>()), 
+                                             numpy::array(boost::python::list()));
         }
         if( extract<int>(shape[1]) != 6 ) {
             throw openrave_exception(_("rays object needs to be a Nx6 vector\n"));
@@ -947,11 +944,9 @@ public:
         CollisionReportPtr preport(&report,null_deleter());
 
         RAY r;
-        npy_intp dims[] = { num,6};
-        PyObject *pypos = PyArray_SimpleNew(2,dims, sizeof(dReal)==8 ? PyArray_DOUBLE : PyArray_FLOAT);
-        dReal* ppos = (dReal*)PyArray_DATA(pypos);
-        PyObject* pycollision = PyArray_SimpleNew(1,&dims[0], PyArray_BOOL);
-        bool* pcollision = (bool*)PyArray_DATA(pycollision);
+        auto pypos = numpy::empty(boost::python::make_tuple(num, 6), numpy::dtype::get_builtin<dReal>());
+        dReal* ppos = (dReal*)pypos.get_data();
+        auto pycollision = numpy::empty(boost::python::make_tuple(num), numpy::dtype::get_builtin<bool>());
         for(int i = 0; i < num; ++i, ppos += 6) {
             vector<dReal> ray = ExtractArray<dReal>(rays[i]);
             r.pos.x = ray[0];
@@ -967,11 +962,11 @@ public:
             else {
                 bCollision = _penv->CheckCollision(r, KinBodyConstPtr(openravepy::GetKinBody(pbody)), preport);
             }
-            pcollision[i] = false;
+            pycollision[i] = false;
             ppos[0] = 0; ppos[1] = 0; ppos[2] = 0; ppos[3] = 0; ppos[4] = 0; ppos[5] = 0;
             if( bCollision &&( report.contacts.size() > 0) ) {
                 if( !bFrontFacingOnly ||( report.contacts[0].norm.dot3(r.dir)<0) ) {
-                    pcollision[i] = true;
+                    pycollision[i] = true;
                     ppos[0] = report.contacts[0].pos.x;
                     ppos[1] = report.contacts[0].pos.y;
                     ppos[2] = report.contacts[0].pos.z;
@@ -981,8 +976,7 @@ public:
                 }
             }
         }
-
-        return boost::python::make_tuple(static_cast<numeric::array>(handle<>(pycollision)),static_cast<numeric::array>(handle<>(pypos)));
+        return boost::python::make_tuple(pycollision, pypos);
     }
 
     bool CheckCollision(boost::shared_ptr<PyRay> pyray)
@@ -1946,8 +1940,8 @@ BOOST_PYTHON_MODULE(openravepy_int)
     doc_options.enable_py_signatures();
     doc_options.enable_user_defined();
 #endif
-    import_array();
-    numeric::array::set_module_and_type("numpy", "ndarray");
+    Py_Initialize();
+    numpy::initialize();
     int_from_int();
     uint8_from_int();
     T_from_number<float>();
