@@ -212,22 +212,16 @@ public:
     PyTriMesh(object vertices, object indices) : vertices(vertices), indices(indices) {
     }
     PyTriMesh(const TriMesh& mesh) {
-        npy_intp dims[] = { npy_intp(mesh.vertices.size()), npy_intp(3)};
-        PyObject *pyvertices = PyArray_SimpleNew(2,dims, sizeof(dReal)==8 ? PyArray_DOUBLE : PyArray_FLOAT);
-        dReal* pvdata = (dReal*)PyArray_DATA(pyvertices);
-        FOREACHC(itv, mesh.vertices) {
-            *pvdata++ = itv->x;
-            *pvdata++ = itv->y;
-            *pvdata++ = itv->z;
+        auto pyvertices = numpy::empty(boost::python::make_tuple(mesh.vertices.size(), 3), numpy::dtype::get_builtin<dReal>());
+        for (size_t it = 0; it < mesh.vertices.size(); ++it) {
+            pyvertices[it][0] = mesh.vertices[it].x;
+            pyvertices[it][1] = mesh.vertices[it].y;
+            pyvertices[it][2] = mesh.vertices[it].z;
         }
-        vertices = static_cast<numeric::array>(handle<>(pyvertices));
-
-        dims[0] = mesh.indices.size()/3;
-        dims[1] = 3;
-        PyObject *pyindices = PyArray_SimpleNew(2,dims, PyArray_INT32);
-        int32_t* pidata = reinterpret_cast<int32_t*>PyArray_DATA(pyindices);
-        std::memcpy(pidata, mesh.indices.data(), mesh.indices.size() * sizeof(int32_t));
-        indices = static_cast<numeric::array>(handle<>(pyindices));
+        vertices = pyvertices;
+        auto pyindices = numpy::empty(boost::python::make_tuple(mesh.indices.size() / 3, 3), numpy::dtype::get_builtin<int32_t>());
+        std::memcpy(pyindices.get_data(), mesh.indices.data(), mesh.indices.size() * sizeof(int32_t));
+        indices = pyindices;
     }
 
     void GetTriMesh(TriMesh& mesh) {
@@ -981,11 +975,9 @@ object poseFromMatrices(object otransforms)
 {
     int N = len(otransforms);
     if( N == 0 ) {
-        return static_cast<numeric::array>(handle<>());
+        return numpy::array(boost::python::list());
     }
-    npy_intp dims[] = { N,7};
-    PyObject *pyvalues = PyArray_SimpleNew(2,dims, sizeof(dReal)==8 ? PyArray_DOUBLE : PyArray_FLOAT);
-    dReal* pvalues = (dReal*)PyArray_DATA(pyvalues);
+    auto pyvalues = numpy::empty(boost::python::make_tuple(N, 7), numpy::dtype::get_builtin<dReal>());
     TransformMatrix tm;
     for(int j = 0; j < N; ++j) {
         object o = otransforms[j];
@@ -996,30 +988,27 @@ object poseFromMatrices(object otransforms)
             tm.trans[i] = extract<dReal>(o[i][3]);
         }
         Transform tpose(tm);
-        pvalues[0] = tpose.rot.x; pvalues[1] = tpose.rot.y; pvalues[2] = tpose.rot.z; pvalues[3] = tpose.rot.w;
-        pvalues[4] = tpose.trans.x; pvalues[5] = tpose.trans.y; pvalues[6] = tpose.trans.z;
-        pvalues += 7;
+        pyvalues[j][0] = tpose.rot.x; pyvalues[j][1] = tpose.rot.y; pyvalues[j][2] = tpose.rot.z; pyvalues[j][3] = tpose.rot.w;
+        pyvalues[j][4] = tpose.trans.x; pyvalues[j][5] = tpose.trans.y; pyvalues[j][6] = tpose.trans.z;
     }
-    return static_cast<numeric::array>(handle<>(pyvalues));
+    return pyvalues;
 }
 
 object InvertPoses(object o)
 {
     int N = len(o);
     if( N == 0 ) {
-        return numeric::array(boost::python::list());
+        return numpy::array(boost::python::list());
     }
-    npy_intp dims[] = { N,7};
-    PyObject *pytrans = PyArray_SimpleNew(2,dims, sizeof(dReal)==8 ? PyArray_DOUBLE : PyArray_FLOAT);
-    dReal* ptrans = (dReal*)PyArray_DATA(pytrans);
-    for(int i = 0; i < N; ++i, ptrans += 7) {
+    auto pytrans = numpy::empty(boost::python::make_tuple(N, 7), numpy::dtype::get_builtin<dReal>());
+    for(int i = 0; i < N; ++i) {
         object oinputtrans = o[i];
         Transform t = Transform(Vector(extract<dReal>(oinputtrans[0]),extract<dReal>(oinputtrans[1]),extract<dReal>(oinputtrans[2]),extract<dReal>(oinputtrans[3])),
                                 Vector(extract<dReal>(oinputtrans[4]),extract<dReal>(oinputtrans[5]),extract<dReal>(oinputtrans[6]))).inverse();
-        ptrans[0] = t.rot.x; ptrans[1] = t.rot.y; ptrans[2] = t.rot.z; ptrans[3] = t.rot.w;
-        ptrans[4] = t.trans.x; ptrans[5] = t.trans.y; ptrans[6] = t.trans.z;
+        pytrans[i][0] = t.rot.x; pytrans[i][1] = t.rot.y; pytrans[i][2] = t.rot.z; pytrans[i][3] = t.rot.w;
+        pytrans[i][4] = t.trans.x; pytrans[i][5] = t.trans.y; pytrans[i][6] = t.trans.z;
     }
-    return static_cast<numeric::array>(handle<>(pytrans));
+    return pytrans;
 }
 
 object InvertPose(object opose)
@@ -1070,14 +1059,12 @@ object poseTransformPoints(object opose, object opoints)
 {
     Transform t = ExtractTransformType<dReal>(opose);
     int N = len(opoints);
-    npy_intp dims[] = { N,3};
-    PyObject *pytrans = PyArray_SimpleNew(2,dims, sizeof(dReal)==8 ? PyArray_DOUBLE : PyArray_FLOAT);
-    dReal* ptrans = (dReal*)PyArray_DATA(pytrans);
-    for(int i = 0; i < N; ++i, ptrans += 3) {
+    auto pytrans = numpy::empty(boost::python::make_tuple(N, 3), numpy::dtype::get_builtin<dReal>());
+    for(int i = 0; i < N; ++i) {
         Vector newpoint = t*ExtractVector3(opoints[i]);
-        ptrans[0] = newpoint.x; ptrans[1] = newpoint.y; ptrans[2] = newpoint.z;
+        pytrans[i][0] = newpoint.x; pytrans[i][1] = newpoint.y; pytrans[i][2] = newpoint.z;
     }
-    return static_cast<numeric::array>(handle<>(pytrans));
+    return pytrans;
 }
 
 object TransformLookat(object olookat, object ocamerapos, object ocameraup)

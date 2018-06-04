@@ -118,6 +118,8 @@ void Init(UserDataPtr globalstate)
 
 BOOST_PYTHON_MODULE(orpythonbinding)
 {
+    Py_Initialize();
+    numpy::initialize(); 
     boost::python::def("Init", cppexamples::Init, boost::python::args("globalstate"), "initializes the python bindings with the openrave global state");
     boost::python::def("RegisterSimulationFunction", cppexamples::RegisterSimulationFunction, boost::python::args("environmentid","simulationfn"));
 };

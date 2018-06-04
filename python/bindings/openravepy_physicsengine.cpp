@@ -87,24 +87,22 @@ public:
         CHECK_POINTER(pykinbody);
         KinBodyPtr pbody = openravepy::GetKinBody(pykinbody);
         if( pbody->GetLinks().size() == 0 ) {
-            return numeric::array(boost::python::list());
+            return numpy::array(boost::python::list());
         }
         std::vector<std::pair<Vector,Vector> > velocities;
         if( !_pPhysicsEngine->GetLinkVelocities(pbody,velocities) ) {
             return object();
         }
-        npy_intp dims[] = { npy_intp(velocities.size()), 6};
-        PyObject *pyvel = PyArray_SimpleNew(2,dims, sizeof(dReal)==8 ? PyArray_DOUBLE : PyArray_FLOAT);
-        dReal* pfvel = (dReal*)PyArray_DATA(pyvel);
+        auto pyvel = numpy::empty(boost::python::make_tuple(velocities.size(), 6), numpy::dtype::get_builtin<dReal>());
         for(size_t i = 0; i < velocities.size(); ++i) {
-            pfvel[6*i+0] = velocities[i].first.x;
-            pfvel[6*i+1] = velocities[i].first.y;
-            pfvel[6*i+2] = velocities[i].first.z;
-            pfvel[6*i+3] = velocities[i].second.x;
-            pfvel[6*i+4] = velocities[i].second.y;
-            pfvel[6*i+5] = velocities[i].second.z;
+            pyvel[6*i+0] = velocities[i].first.x;
+            pyvel[6*i+1] = velocities[i].first.y;
+            pyvel[6*i+2] = velocities[i].first.z;
+            pyvel[6*i+3] = velocities[i].second.x;
+            pyvel[6*i+4] = velocities[i].second.y;
+            pyvel[6*i+5] = velocities[i].second.z;
         }
-        return static_cast<numeric::array>(handle<>(pyvel));
+        return pyvel;
     }
 
     bool SetBodyForce(object pylink, object force, object position, bool bAdd)

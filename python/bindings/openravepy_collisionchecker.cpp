@@ -506,7 +506,8 @@ public:
         object shape = rays.attr("shape");
         int num = extract<int>(shape[0]);
         if( num == 0 ) {
-            return boost::python::make_tuple(numeric::array(boost::python::list()).astype("i4"),numeric::array(boost::python::list()));
+            return boost::python::make_tuple(numpy::empty(boost::python::make_tuple(0), numpy::dtype::get_builtin<int>()),
+                                             numpy::array(boost::python::list()));
         }
         if( extract<int>(shape[1]) != 6 ) {
             throw openrave_exception(_("rays object needs to be a Nx6 vector\n"));
@@ -515,11 +516,9 @@ public:
         CollisionReportPtr preport(&report,null_deleter());
 
         RAY r;
-        npy_intp dims[] = { num,6};
-        PyObject *pypos = PyArray_SimpleNew(2,dims, sizeof(dReal)==8 ? PyArray_DOUBLE : PyArray_FLOAT);
-        dReal* ppos = (dReal*)PyArray_DATA(pypos);
-        PyObject* pycollision = PyArray_SimpleNew(1,&dims[0], PyArray_BOOL);
-        bool* pcollision = (bool*)PyArray_DATA(pycollision);
+        auto pypos = numpy::empty(boost::python::make_tuple(num, 6), numpy::dtype::get_builtin<dReal>());
+        dReal* ppos = (dReal*) pypos.get_data();
+        auto pycollision = numpy::empty(boost::python::make_tuple(num), numpy::dtype::get_builtin<bool>());
         for(int i = 0; i < num; ++i, ppos += 6) {
             vector<dReal> ray = ExtractArray<dReal>(rays[i]);
             r.pos.x = ray[0];
@@ -535,11 +534,11 @@ public:
             else {
                 bCollision = _pCollisionChecker->CheckCollision(r, KinBodyConstPtr(openravepy::GetKinBody(pbody)), preport);
             }
-            pcollision[i] = false;
+            pycollision[i] = false;
             ppos[0] = 0; ppos[1] = 0; ppos[2] = 0; ppos[3] = 0; ppos[4] = 0; ppos[5] = 0;
             if( bCollision &&( report.contacts.size() > 0) ) {
                 if( !bFrontFacingOnly ||( report.contacts[0].norm.dot3(r.dir)<0) ) {
-                    pcollision[i] = true;
+                    pycollision[i] = true;
                     ppos[0] = report.contacts[0].pos.x;
                     ppos[1] = report.contacts[0].pos.y;
                     ppos[2] = report.contacts[0].pos.z;
@@ -550,7 +549,7 @@ public:
             }
         }
 
-        return boost::python::make_tuple(static_cast<numeric::array>(handle<>(pycollision)),static_cast<numeric::array>(handle<>(pypos)));
+        return boost::python::make_tuple(pycollision, pypos);
     }
 
     bool CheckCollision(boost::shared_ptr<PyRay> pyray)
