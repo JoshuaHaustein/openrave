@@ -292,9 +292,10 @@ inline RaveTransformMatrix<T> ExtractTransformMatrixType(const object& o)
 inline object toPyArrayRotation(const TransformMatrix& t)
 {
     auto pyvalues = numpy::empty(boost::python::make_tuple(3, 3), numpy::dtype::get_builtin<dReal>());
-    pyvalues[0] = t.m[0]; pyvalues[1] = t.m[1]; pyvalues[2] = t.m[2];
-    pyvalues[3] = t.m[4]; pyvalues[4] = t.m[5]; pyvalues[5] = t.m[6];
-    pyvalues[6] = t.m[8]; pyvalues[7] = t.m[9]; pyvalues[8] = t.m[10];
+    dReal* pyvalues_data = (dReal*) pyvalues.get_data();
+    pyvalues_data[0] = t.m[0]; pyvalues_data[1] = t.m[1]; pyvalues_data[2] = t.m[2];
+    pyvalues_data[3] = t.m[4]; pyvalues_data[4] = t.m[5]; pyvalues_data[5] = t.m[6];
+    pyvalues_data[6] = t.m[8]; pyvalues_data[7] = t.m[9]; pyvalues_data[8] = t.m[10];
     return pyvalues;
 }
 

@@ -45,10 +45,11 @@ TransformMatrix ExtractTransformMatrix(const object& oraw)
 object toPyArray(const TransformMatrix& t)
 {
     auto pyvalues = numpy::empty(boost::python::make_tuple(4,4), numpy::dtype::get_builtin<dReal>());
-    pyvalues[0] = t.m[0]; pyvalues[1] = t.m[1]; pyvalues[2] = t.m[2]; pyvalues[3] = t.trans.x;
-    pyvalues[4] = t.m[4]; pyvalues[5] = t.m[5]; pyvalues[6] = t.m[6]; pyvalues[7] = t.trans.y;
-    pyvalues[8] = t.m[8]; pyvalues[9] = t.m[9]; pyvalues[10] = t.m[10]; pyvalues[11] = t.trans.z;
-    pyvalues[12] = 0; pyvalues[13] = 0; pyvalues[14] = 0; pyvalues[15] = 1;
+    dReal* pyvalues_data = (dReal*) pyvalues.get_data();
+    pyvalues_data[0] = t.m[0]; pyvalues_data[1] = t.m[1]; pyvalues_data[2] = t.m[2]; pyvalues_data[3] = t.trans.x;
+    pyvalues_data[4] = t.m[4]; pyvalues_data[5] = t.m[5]; pyvalues_data[6] = t.m[6]; pyvalues_data[7] = t.trans.y;
+    pyvalues_data[8] = t.m[8]; pyvalues_data[9] = t.m[9]; pyvalues_data[10] = t.m[10]; pyvalues_data[11] = t.trans.z;
+    pyvalues_data[12] = 0; pyvalues_data[13] = 0; pyvalues_data[14] = 0; pyvalues_data[15] = 1;
     return pyvalues;
 }
 
