@@ -297,7 +297,7 @@ object k_priority_search_array(ANNkd_tree& kdtree, object q, int k, double eps)
 
 BOOST_PYTHON_MODULE(pyANN_int)
 {
-    import_array();
+    // import_array();
     Py_Initialize();
     numpy::initialize(); 
     int_from_int();
