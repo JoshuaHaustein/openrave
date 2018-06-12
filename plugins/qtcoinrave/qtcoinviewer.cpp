@@ -1872,7 +1872,22 @@ void* QtCoinViewer::_drawbox(SoSwitch* handle, const RaveVector<float>& vpos, co
     }
     SoSeparator* pparent = new SoSeparator(); handle->addChild(pparent);
     pparent->addChild(new SoTransform());
-    RAVELOG_ERROR("drawbox not implemented\n");
+    // RAVELOG_ERROR("drawbox not implemented\n");
+
+    SoSeparator* psep = new SoSeparator();
+    SoTransform* ptrans = new SoTransform();
+
+    ptrans->translation.setValue(vpos[0], vpos[1], vpos[2]);
+
+    psep->addChild(ptrans);
+    pparent->addChild(psep);
+    // _SetMaterial(psep,color);
+
+    SoCube* c = new SoCube();
+    c->width = 2.0f * vextents[0];
+    c->height = 2.0f * vextents[1];
+    c->depth = 2.0f * vextents[2];
+    psep->addChild(c);
 
     _pFigureRoot->addChild(handle);
     return handle;
