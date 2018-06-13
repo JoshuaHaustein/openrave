@@ -1549,7 +1549,7 @@ public:
         if( !IS_PYTHONOBJECT_NONE(ocolor) ) {
             vcolor = ExtractVector34(ocolor,1.0f);
         }
-        return toPyGraphHandle(_penv->drawbox(ExtractVector3(opos),ExtractVector3(oextents)));
+        return toPyGraphHandle(_penv->drawbox(ExtractVector3(opos),ExtractVector3(oextents), vcolor));
     }
 
     object drawplane(object otransform, object oextents, const boost::multi_array<float,2>&_vtexture)

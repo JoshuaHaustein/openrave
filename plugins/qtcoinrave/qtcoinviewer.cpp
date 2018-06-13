@@ -960,8 +960,9 @@ class DrawBoxMessage : public QtCoinViewer::EnvMessage
 {
 public:
     DrawBoxMessage(QtCoinViewerPtr pviewer, SoSwitch* handle,
-                   const RaveVector<float>& vpos, const RaveVector<float>& vextents)
-        : EnvMessage(pviewer, NULL, false), _vpos(vpos), _vextents(vextents), _handle(handle) {
+                   const RaveVector<float>& vpos, const RaveVector<float>& vextents,
+                   const RaveVector<float>& vcolor)
+        : EnvMessage(pviewer, NULL, false), _vpos(vpos), _vextents(vextents), _vcolor(vcolor), _handle(handle) {
     }
 
     virtual void viewerexecute() {
@@ -969,20 +970,20 @@ public:
         if( !pviewer ) {
             return;
         }
-        void* ret = pviewer->_drawbox(_handle, _vpos, _vextents);
+        void* ret = pviewer->_drawbox(_handle, _vpos, _vextents, _vcolor);
         BOOST_ASSERT( _handle == ret);
         EnvMessage::viewerexecute();
     }
 
 private:
-    RaveVector<float> _vpos, _vextents;
+    RaveVector<float> _vpos, _vextents, _vcolor;
     SoSwitch* _handle;
 };
 
-GraphHandlePtr QtCoinViewer::drawbox(const RaveVector<float>& vpos, const RaveVector<float>& vextents)
+GraphHandlePtr QtCoinViewer::drawbox(const RaveVector<float>& vpos, const RaveVector<float>& vextents, const RaveVector<float>& vcolor)
 {
     SoSwitch* handle = _createhandle();
-    EnvMessagePtr pmsg(new DrawBoxMessage(shared_viewer(), handle, vpos, vextents));
+    EnvMessagePtr pmsg(new DrawBoxMessage(shared_viewer(), handle, vpos, vextents, vcolor));
     pmsg->callerexecute(false);
     return GraphHandlePtr(new PrivateGraphHandle(shared_viewer(), handle));
 }
@@ -1865,7 +1866,8 @@ void* QtCoinViewer::_drawarrow(SoSwitch* handle, const RaveVector<float>& p1, co
     return handle;
 }
 
-void* QtCoinViewer::_drawbox(SoSwitch* handle, const RaveVector<float>& vpos, const RaveVector<float>& vextents)
+void* QtCoinViewer::_drawbox(SoSwitch* handle, const RaveVector<float>& vpos, const RaveVector<float>& vextents,
+                             const RaveVector<float>& vcolor)
 {
     if( handle == NULL ) {
         return handle;
@@ -1881,7 +1883,7 @@ void* QtCoinViewer::_drawbox(SoSwitch* handle, const RaveVector<float>& vpos, co
 
     psep->addChild(ptrans);
     pparent->addChild(psep);
-    // _SetMaterial(psep,color);
+    _SetMaterial(psep, vcolor);
 
     SoCube* c = new SoCube();
     c->width = 2.0f * vextents[0];

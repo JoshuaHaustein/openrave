@@ -1799,7 +1799,7 @@ public:
         }
         return handles;
     }
-    virtual OpenRAVE::GraphHandlePtr drawbox(const RaveVector<float>& vpos, const RaveVector<float>& vextents)
+    virtual OpenRAVE::GraphHandlePtr drawbox(const RaveVector<float>& vpos, const RaveVector<float>& vextents, const RaveVector<float>& vcolor)
     {
         boost::timed_mutex::scoped_lock lock(_mutexInterfaces);
         if( _listViewers.size() == 0 ) {
@@ -1807,7 +1807,7 @@ public:
         }
         GraphHandleMultiPtr handles(new GraphHandleMulti());
         FOREACHC(itviewer, _listViewers) {
-            handles->Add((*itviewer)->drawbox(vpos, vextents));
+            handles->Add((*itviewer)->drawbox(vpos, vextents, vcolor));
         }
         return handles;
     }

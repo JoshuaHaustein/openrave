@@ -1531,7 +1531,7 @@ GraphHandlePtr QtOSGViewer::drawarrow(const RaveVector<float>& p1, const RaveVec
     return GraphHandlePtr();
 }
 
-void QtOSGViewer::_DrawBox(OSGSwitchPtr handle, const RaveVector<float>& vpos, const RaveVector<float>& vextents, bool bUsingTransparency)
+void QtOSGViewer::_DrawBox(OSGSwitchPtr handle, const RaveVector<float>& vpos, const RaveVector<float>& vextents, const RaveVector<float>& vcolor, bool bUsingTransparency)
 {
     OSGMatrixTransformPtr trans(new osg::MatrixTransform());
     osg::ref_ptr<osg::Geode> geode(new osg::Geode());
@@ -1541,6 +1541,8 @@ void QtOSGViewer::_DrawBox(OSGSwitchPtr handle, const RaveVector<float>& vpos, c
     box->setCenter(osg::Vec3(vpos.x, vpos.y, vpos.z));
 
     osg::ref_ptr<osg::ShapeDrawable> sd = new osg::ShapeDrawable(box.get());
+    osg::Vec4 osgcolor(vcolor[0], vcolor[1], vcolor[2], vcolor[3]);
+    sd->setColor(osgcolor);
     geode->addDrawable(sd);
 
     // don't do transparent bin since that is too slow for big point clouds...
@@ -1552,10 +1554,11 @@ void QtOSGViewer::_DrawBox(OSGSwitchPtr handle, const RaveVector<float>& vpos, c
     _posgWidget->GetFigureRoot()->insertChild(0, handle);
 }
 
-GraphHandlePtr QtOSGViewer::drawbox(const RaveVector<float>& vpos, const RaveVector<float>& vextents)
+GraphHandlePtr QtOSGViewer::drawbox(const RaveVector<float>& vpos, const RaveVector<float>& vextents, const RaveVector<float>& color)
 {
     OSGSwitchPtr handle = _CreateGraphHandle();
-    _PostToGUIThread(boost::bind(&QtOSGViewer::_DrawBox, this, handle, vpos, vextents, false)); // copies ref counts
+    bool has_transparency = vcolor.size() == 4 && vcolor[3] < 1.0f;
+    _PostToGUIThread(boost::bind(&QtOSGViewer::_DrawBox, this, handle, vpos, vextents, vcolor, has_transparency)); // copies ref counts
     return GraphHandlePtr();
 }
 

@@ -640,7 +640,7 @@ public:
     ///
     /// extents are half the width, height, and depth of the box
     /// \return handle to plotted points, graph is removed when handle is destroyed (goes out of scope). This requires the user to always store the handle in a persistent variable if the plotted graphics are to remain on the viewer.
-    virtual OpenRAVE::GraphHandlePtr drawbox(const RaveVector<float>& vpos, const RaveVector<float>& vextents) = 0;
+    virtual OpenRAVE::GraphHandlePtr drawbox(const RaveVector<float>& vpos, const RaveVector<float>& vextents, const RaveVector<float>& color = RaveVector<float>(1,0.5,0.5,1)) = 0;
 
     /// \brief Draws a textured plane. <b>[multi-thread safe]</b>
     ///
