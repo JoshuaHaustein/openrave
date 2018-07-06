@@ -961,8 +961,8 @@ class DrawBoxMessage : public QtCoinViewer::EnvMessage
 public:
     DrawBoxMessage(QtCoinViewerPtr pviewer, SoSwitch* handle,
                    const RaveVector<float>& vpos, const RaveVector<float>& vextents,
-                   const RaveVector<float>& vcolor)
-        : EnvMessage(pviewer, NULL, false), _vpos(vpos), _vextents(vextents), _vcolor(vcolor), _handle(handle) {
+                   const RaveVector<float>& vcolor, const Transform& tf)
+        : EnvMessage(pviewer, NULL, false), _vpos(vpos), _vextents(vextents), _vcolor(vcolor), _tf(tf), _handle(handle) {
     }
 
     virtual void viewerexecute() {
@@ -970,20 +970,21 @@ public:
         if( !pviewer ) {
             return;
         }
-        void* ret = pviewer->_drawbox(_handle, _vpos, _vextents, _vcolor);
+        void* ret = pviewer->_drawbox(_handle, _vpos, _vextents, _vcolor, _tf);
         BOOST_ASSERT( _handle == ret);
         EnvMessage::viewerexecute();
     }
 
 private:
     RaveVector<float> _vpos, _vextents, _vcolor;
+    Transform _tf;
     SoSwitch* _handle;
 };
 
-GraphHandlePtr QtCoinViewer::drawbox(const RaveVector<float>& vpos, const RaveVector<float>& vextents, const RaveVector<float>& vcolor)
+GraphHandlePtr QtCoinViewer::drawbox(const RaveVector<float>& vpos, const RaveVector<float>& vextents, const RaveVector<float>& vcolor, const Transform& tf)
 {
     SoSwitch* handle = _createhandle();
-    EnvMessagePtr pmsg(new DrawBoxMessage(shared_viewer(), handle, vpos, vextents, vcolor));
+    EnvMessagePtr pmsg(new DrawBoxMessage(shared_viewer(), handle, vpos, vextents, vcolor, tf));
     pmsg->callerexecute(false);
     return GraphHandlePtr(new PrivateGraphHandle(shared_viewer(), handle));
 }
@@ -1867,7 +1868,7 @@ void* QtCoinViewer::_drawarrow(SoSwitch* handle, const RaveVector<float>& p1, co
 }
 
 void* QtCoinViewer::_drawbox(SoSwitch* handle, const RaveVector<float>& vpos, const RaveVector<float>& vextents,
-                             const RaveVector<float>& vcolor)
+                             const RaveVector<float>& vcolor, const Transform& tf)
 {
     if( handle == NULL ) {
         return handle;
@@ -1879,7 +1880,11 @@ void* QtCoinViewer::_drawbox(SoSwitch* handle, const RaveVector<float>& vpos, co
     SoSeparator* psep = new SoSeparator();
     SoTransform* ptrans = new SoTransform();
 
-    ptrans->translation.setValue(vpos[0], vpos[1], vpos[2]);
+    Transform ltf;
+    ltf.trans = vpos; // vpos is local position in frame defined by tf
+    ltf = tf * ltf; // we need a global frame
+    ptrans->translation.setValue(ltf.trans.x, ltf.trans.y, ltf.trans.z);
+    ptrans->rotation.setValue(ltf.rot.y, ltf.rot.z, ltf.rot.w, ltf.rot.x);
 
     psep->addChild(ptrans);
     pparent->addChild(psep);

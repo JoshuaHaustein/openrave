@@ -1531,9 +1531,12 @@ GraphHandlePtr QtOSGViewer::drawarrow(const RaveVector<float>& p1, const RaveVec
     return GraphHandlePtr();
 }
 
-void QtOSGViewer::_DrawBox(OSGSwitchPtr handle, const RaveVector<float>& vpos, const RaveVector<float>& vextents, const RaveVector<float>& vcolor, bool bUsingTransparency)
+void QtOSGViewer::_DrawBox(OSGSwitchPtr handle, const RaveVector<float>& vpos, const RaveVector<float>& vextents, const RaveVector<float>& vcolor, const Transform& tf, bool bUsingTransparency)
 {
-    OSGMatrixTransformPtr trans(new osg::MatrixTransform());
+    osg::Matrixd osg_matrix;
+    osg_matrix.setTrans(tf.trans.x, tf.trans.y, tf.trans.z);
+    osg_matrix.setRotate(osg::Quat(tf.rot.y, tf.rot.z, tf.rot.w, tf.rot.x));
+    OSGMatrixTransformPtr trans(new osg::MatrixTransform(osg_matrix));
     osg::ref_ptr<osg::Geode> geode(new osg::Geode());
 
     osg::ref_ptr<osg::Box> box = new osg::Box();
@@ -1554,11 +1557,11 @@ void QtOSGViewer::_DrawBox(OSGSwitchPtr handle, const RaveVector<float>& vpos, c
     _posgWidget->GetFigureRoot()->insertChild(0, handle);
 }
 
-GraphHandlePtr QtOSGViewer::drawbox(const RaveVector<float>& vpos, const RaveVector<float>& vextents, const RaveVector<float>& color)
+GraphHandlePtr QtOSGViewer::drawbox(const RaveVector<float>& vpos, const RaveVector<float>& vextents, const RaveVector<float>& color, const Transform& tf)
 {
     OSGSwitchPtr handle = _CreateGraphHandle();
     bool has_transparency = vcolor.size() == 4 && vcolor[3] < 1.0f;
-    _PostToGUIThread(boost::bind(&QtOSGViewer::_DrawBox, this, handle, vpos, vextents, vcolor, has_transparency)); // copies ref counts
+    _PostToGUIThread(boost::bind(&QtOSGViewer::_DrawBox, this, handle, vpos, vextents, vcolor, tf, has_transparency)); // copies ref counts
     return GraphHandlePtr();
 }
 

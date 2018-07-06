@@ -638,9 +638,10 @@ public:
 
     /// \brief Draws a box. <b>[multi-thread safe]</b>
     ///
-    /// extents are half the width, height, and depth of the box
+    /// extents are half the width, height, and depth of the box. Color is a 4d vector of rgba values. The transform tf denotes an optional transformation
+    /// from the box's local frame to the world frame. This allows drawing boxes that are not axis aligned with the world frame.
     /// \return handle to plotted points, graph is removed when handle is destroyed (goes out of scope). This requires the user to always store the handle in a persistent variable if the plotted graphics are to remain on the viewer.
-    virtual OpenRAVE::GraphHandlePtr drawbox(const RaveVector<float>& vpos, const RaveVector<float>& vextents, const RaveVector<float>& color = RaveVector<float>(1,0.5,0.5,1)) = 0;
+    virtual OpenRAVE::GraphHandlePtr drawbox(const RaveVector<float>& vpos, const RaveVector<float>& vextents, const RaveVector<float>& color = RaveVector<float>(1,0.5,0.5,1), const Transform& tf = Transform()) = 0;
 
     /// \brief Draws a textured plane. <b>[multi-thread safe]</b>
     ///
