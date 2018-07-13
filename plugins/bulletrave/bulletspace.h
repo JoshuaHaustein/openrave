@@ -48,17 +48,17 @@ public:
 public:
         class LINK : public btMotionState
         {
-public:
+        public:
             virtual ~LINK() {
             }
 
-            virtual void getWorldTransform(btTransform& centerOfMassWorldTrans ) const
+            virtual void getWorldTransform(btTransform& centerOfMassWorldTrans ) const override
             {
                 //centerOfMassWorldTrans = m_centerOfMassOffset.inverse() * m_graphicsWorldTrans;
                 centerOfMassWorldTrans = GetBtTransform(plink->GetTransform()*tlocal);
             }
 
-            virtual void setWorldTransform(const btTransform& centerOfMassWorldTrans)
+            virtual void setWorldTransform(const btTransform& centerOfMassWorldTrans) override
             {
                 //m_graphicsWorldTrans = centerOfMassWorldTrans * m_centerOfMassOffset;
                 //RAVELOG_INFO(plink->GetName()); //This info is eats up the terminal
@@ -440,8 +440,9 @@ private:
     void _Synchronize(KinBodyInfoPtr pinfo)
     {
         vector<Transform> vtrans;
-        std::vector<int> dofbranches;
-        pinfo->pbody->GetLinkTransformations(vtrans,dofbranches);
+        // std::vector<int> dofbranches;
+        // pinfo->pbody->GetLinkTransformations(vtrans,dofbranches);
+        pinfo->pbody->GetLinkTransformations(vtrans);
         pinfo->nLastStamp = pinfo->pbody->GetUpdateStamp();
         BOOST_ASSERT( vtrans.size() == pinfo->vlinks.size() );
         for(size_t i = 0; i < vtrans.size(); ++i) {
@@ -478,15 +479,28 @@ static KinBody::LinkPtr GetLinkFromCollision(const btCollisionObject* co) {
     return static_cast<BulletSpace::KinBodyInfo::LINK*>(co->getUserPointer())->plink;
 }
 
-static KinBody::LinkPtr GetLinkFromProxy(btBroadphaseProxy* proxy) {
-    return GetLinkFromCollision(static_cast<btCollisionObject*>(proxy->m_clientObject));
+static KinBody::LinkPtr GetLinkFromProxy(const btBroadphaseProxy* proxy) {
+    return GetLinkFromCollision(static_cast<const btCollisionObject*>(proxy->m_clientObject));
 }
 
 class OpenRAVEFilterCallback : public btOverlapFilterCallback
 {
 public:
     virtual bool CheckLinks(KinBody::LinkPtr plink0, KinBody::LinkPtr plink1) const = 0;
-    virtual bool needBroadphaseCollision(btBroadphaseProxy* proxy0,btBroadphaseProxy* proxy1) const
+
+    virtual bool needBroadphaseCollision(const btBroadphaseProxy* proxy0, const btBroadphaseProxy* proxy1) const 
+    {
+        BOOST_ASSERT( static_cast<btCollisionObject*>(proxy0->m_clientObject) != NULL );
+        BOOST_ASSERT( static_cast<btCollisionObject*>(proxy1->m_clientObject) != NULL );
+        KinBody::LinkPtr plink0 = GetLinkFromProxy(proxy0);
+        KinBody::LinkPtr plink1 = GetLinkFromProxy(proxy1);
+        if( !plink0->IsEnabled() || !plink1->IsEnabled() ) {
+            return false;
+        }
+        return CheckLinks(plink0,plink1);
+    }
+
+    virtual bool needBroadphaseCollision(btBroadphaseProxy* proxy0, btBroadphaseProxy* proxy1) const override
     {
         BOOST_ASSERT( static_cast<btCollisionObject*>(proxy0->m_clientObject) != NULL );
         BOOST_ASSERT( static_cast<btCollisionObject*>(proxy1->m_clientObject) != NULL );

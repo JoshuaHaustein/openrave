@@ -930,7 +930,7 @@ public:
         return bCollision;
     }
 
-    object CheckCollisionRays(object rays, PyKinBodyPtr pbody,bool bFrontFacingOnly=false)
+    object CheckCollisionRays(object rays, PyKinBodyPtr pbody=nullptr, bool bFrontFacingOnly=false)
     {
         object shape = rays.attr("shape");
         int num = extract<int>(shape[0]);
@@ -966,6 +966,9 @@ public:
             pycollision[i] = false;
             ppos[0] = 0; ppos[1] = 0; ppos[2] = 0; ppos[3] = 0; ppos[4] = 0; ppos[5] = 0;
             if( bCollision &&( report.contacts.size() > 0) ) {
+                // std::stringstream ss;
+                // ss << "CheckCollisionRays: Found " << report.contacts.size() << " contacts for ray " << i << "\n";
+                // RAVELOG_INFO(ss.str());
                 if( !bFrontFacingOnly ||( report.contacts[0].norm.dot3(r.dir)<0) ) {
                     pycollision[i] = true;
                     ppos[0] = report.contacts[0].pos.x;
@@ -1895,7 +1898,7 @@ BOOST_PYTHON_MEMBER_FUNCTION_OVERLOADS(StartSimulation_overloads, StartSimulatio
 BOOST_PYTHON_MEMBER_FUNCTION_OVERLOADS(StopSimulation_overloads, StopSimulation, 0, 1)
 BOOST_PYTHON_MEMBER_FUNCTION_OVERLOADS(SetViewer_overloads, SetViewer, 1, 2)
 BOOST_PYTHON_MEMBER_FUNCTION_OVERLOADS(SetDefaultViewer_overloads, SetDefaultViewer, 0, 1)
-BOOST_PYTHON_MEMBER_FUNCTION_OVERLOADS(CheckCollisionRays_overloads, CheckCollisionRays, 2, 3)
+BOOST_PYTHON_MEMBER_FUNCTION_OVERLOADS(CheckCollisionRays_overloads, CheckCollisionRays, 1, 3)
 BOOST_PYTHON_MEMBER_FUNCTION_OVERLOADS(plot3_overloads, plot3, 2, 4)
 BOOST_PYTHON_MEMBER_FUNCTION_OVERLOADS(drawlinestrip_overloads, drawlinestrip, 2, 4)
 BOOST_PYTHON_MEMBER_FUNCTION_OVERLOADS(drawlinelist_overloads, drawlinelist, 2, 4)
@@ -2099,7 +2102,7 @@ Because race conditions can pop up when trying to lock the openrave environment 
                     .def("CheckCollision",pcolyr,args("ray"), DOXY_FN(EnvironmentBase,CheckCollision "const RAY; CollisionReportPtr"))
                     .def("CheckCollisionRays",&PyEnvironmentBase::CheckCollisionRays,
                          CheckCollisionRays_overloads(args("rays","body","front_facing_only"),
-                                                      "Check if any rays hit the body and returns their contact points along with a vector specifying if a collision occured or not. Rays is a Nx6 array, first 3 columsn are position, last 3 are direction*range."))
+                                                      "Check if any rays hit a body and returns their contact points along with a vector specifying if a collision occured or not. Rays is a Nx6 array, first 3 columsn are position, last 3 are direction*range. If a body is provided, only the intersection with this body is tested."))
                     .def("LoadURI",&PyEnvironmentBase::LoadURI,LoadURI_overloads(args("filename","atts"), DOXY_FN(EnvironmentBase,LoadURI)))
                     .def("Load",load1,args("filename"), DOXY_FN(EnvironmentBase,Load))
                     .def("Load",load2,args("filename","atts"), DOXY_FN(EnvironmentBase,Load))
