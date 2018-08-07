@@ -20,51 +20,44 @@ class BulletPhysicsEngine : public PhysicsEngineBase
 {
     class PhysicsFilterCallback : public OpenRAVEFilterCallback
     {
-public:
+    public:
         PhysicsFilterCallback() : OpenRAVEFilterCallback() {
         }
-        virtual bool CheckLinks(KinBody::LinkPtr plink0, KinBody::LinkPtr plink1) const
+        virtual bool CheckLinks(KinBody::LinkPtr plink0, KinBody::LinkPtr plink1) const override
         {
-		bool flag_of_collision;
-                KinBodyPtr pbody0 = plink0->GetParent();
-                KinBodyPtr pbody1 = plink1->GetParent();
+		    bool flag_of_collision;
+            KinBodyPtr pbody0 = plink0->GetParent();
+            KinBodyPtr pbody1 = plink1->GetParent();
 
-                if( pbody0 == pbody1 ) {
-              
-              // Read all the Adjacent link pairs from the robot and check if the 2 links 
-              // you are about to compare, are in a pair inside the Adjacent link pair list
-              FOREACHC(it,pbody0->GetAdjacentLinks()){
-                 
-                  //  The comparision is done bite retrieval process
-                  //  list of pairs  -->  [(a,b),(a',b'),(a'',b''),.....]
-                  /*   And we compare,  a with link0's Index and b with link1's Index 
+            if( pbody0 == pbody1 ) {
+                // Read all the Adjacent link pairs from the robot and check if the 2 links 
+                // you are about to compare, are in a pair inside the Adjacent link pair list
+                FOREACHC(it,pbody0->GetAdjacentLinks()){
+                    //  The comparision is done bite retrieval process
+                    //  list of pairs  -->  [(a,b),(a',b'),(a'',b''),.....]
+                    /*   And we compare,  a with link0's Index and b with link1's Index 
                                         a' with link0's Index and b' with link1's Index
                                                         ...
-                      so we try to find if the link0 and link1 form a pair inside the Adjacent 
-                      link pair list, in order to avoid collision ---
-                  */
-                 if (((int)((*it)&0xffff) == plink0->GetIndex()) && ((int)((*it)>>16) == plink1->GetIndex())){
-                   flag_of_collision = false;
-                   break;
-                  }
-                 // the same condition as above but checking the inverse of the pair (a,b)'= (b,a)
-                 else if( ((int)((*it)&0xffff) == plink1->GetIndex()) && ((int)((*it)>>16) == plink0->GetIndex())){
-                   flag_of_collision = false;
-                   break;
-                 }
-                 // otherwise we return true because collision check should be done
-                 else {
-                   flag_of_collision = true;
-                 }
-                 }
-               }
-            else {
-               // If they are from different entities then collision check has to be performed
-               flag_of_collision = true;
-               
-             }
-             return flag_of_collision;
-
+                        so we try to find if the link0 and link1 form a pair inside the Adjacent 
+                        link pair list, in order to avoid collision ---
+                    */
+                    if (((int)((*it)&0xffff) == plink0->GetIndex()) && ((int)((*it)>>16) == plink1->GetIndex())){
+                        flag_of_collision = false;
+                        break;
+                    } else if( ((int)((*it)&0xffff) == plink1->GetIndex()) && ((int)((*it)>>16) == plink0->GetIndex())){
+                        // the same condition as above but checking the inverse of the pair (a,b)'= (b,a)
+                        flag_of_collision = false;
+                        break;
+                    } else {
+                        // otherwise we return true because collision check should be done
+                        flag_of_collision = true;
+                    }
+                }
+            } else {
+                // If they are from different entities then collision check has to be performed
+                flag_of_collision = true;
+            }
+            return flag_of_collision;
         }
     };
 
@@ -100,7 +93,7 @@ public:
         {
             if( name == "bulletproperties" )
                 return true;
-	    else if( name == "solver_iterations" ) {
+	        else if( name == "solver_iterations" ) {
                 // read all the float values into a vector
                 _ss >> _physics->_solver_iterations;
             }
@@ -328,36 +321,27 @@ public:
         // the PhysicsFilterCallback() is derived from the OpenRAVEFilterCallback which is in the file bulletspace.h
         _filterCallback.reset(new PhysicsFilterCallback());
         _dynamicsWorld->getPairCache()->setOverlapFilterCallback(_filterCallback.get());
-        
 
         btContactSolverInfo& solverInfo = _dynamicsWorld->getSolverInfo();
         RAVELOG_DEBUG(str(boost::format("bullet dynamics: m_numIterations=%d, m_globalCfm=%f")%_solver_iterations%_global_contact_force_mixing));
         
         solverInfo.m_numIterations = _solver_iterations;
         solverInfo.m_globalCfm = _global_contact_force_mixing;
-        
         solverInfo.m_erp = _super_damp; 
         solverInfo.m_erp2 = _super_damp2;
         //solverInfo. m_splitImpulsePenetrationThreshold = 0.5;
         
         solverInfo.m_solverMode |= SOLVER_SIMD | SOLVER_DISABLE_VELOCITY_DEPENDENT_FRICTION_DIRECTION |SOLVER_USE_2_FRICTION_DIRECTIONS; //SOLVER_ENABLE_FRICTION_DIRECTION_CACHING ;
-        
 	//solverInfo.m_solverMode |=    SOLVER_FRICTION_SEPARATE  |SOLVER_USE_2_FRICTION_DIRECTIONS;
-	
-
 	//solverInfo.m_solverMode |=  SOLVER_SIMD | SOLVER_FRICTION_SEPARATE  |SOLVER_DISABLE_VELOCITY_DEPENDENT_FRICTION_DIRECTION | SOLVER_RANDMIZE_ORDER SOLVER_USE_2_FRICTION_DIRECTIONS;
-	
 	// The 2 friction direction are not good at all for collision points with flat surfaces ....
 	// Because the the is no rotational friction at all... 
-
 	//solverInfo.m_restingContactRestitutionThreshold = 1e10;
 	//solverInfo.m_splitImpulse = 1; 
 	//solverInfo.m_splitImpulsePenetrationThreshold = 0.2;
         if(!_space->InitEnvironment(_dynamicsWorld)) {
             return false;
         }
-        
-       
         vector<KinBodyPtr> vbodies;
         GetEnv()->GetBodies(vbodies); 
         FOREACHC(itbody, vbodies) { 
@@ -394,53 +378,44 @@ public:
         BulletSpace::KinBodyInfoPtr pinfo = _space->InitKinBody(pbody);
         pbody->SetUserData("bulletphysics", pinfo);
        {
-            
-                if (pbody->IsRobot()){
-                
+            if (pbody->IsRobot()){
                 FOREACHC(po, pbody->GetLinks()) {
-                     FOREACH(itlink,pinfo->vlinks) { 
+                        FOREACH(itlink,pinfo->vlinks) { 
                         /*-- The following lines are used in order to keep the robot(hand)
-                          -- awake, so we can command the joints with torques anytime we 
-                          -- need. 
-                          <<This is a very usefull mechanism (available in all physics engines) 
-                          to keep the CPU load low. It is called "deactivation" or "sleeping".
-                          It make kinbodies sleep(do not move), when the are not in dynamic 
-                          states(situation,instance)>>
+                            -- awake, so we can command the joints with torques anytime we 
+                            -- need. 
+                            <<This is a very usefull mechanism (available in all physics engines) 
+                            to keep the CPU load low. It is called "deactivation" or "sleeping".
+                            It make kinbodies sleep(do not move), when the are not in dynamic 
+                            states(situation,instance)>>
                         */
                         (*itlink)->_rigidbody->setActivationState(DISABLE_DEACTIVATION);
                         (*itlink)->_rigidbody->forceActivationState(DISABLE_DEACTIVATION);
                         (*itlink)->_rigidbody->setFriction(0.9);
                         (*itlink)->_rigidbody->setRestitution(0.35); 
-                        
-                        
-                   }
-                 
-                }
-              }
-              else{
-                //do nothing
-              }
-                
-              FOREACHC(po, pbody->GetLinks()) {
-                  if ((*po)->IsStatic() ){
-                    FOREACH(itlink,pinfo->vlinks) { 
-                      (*itlink)->_rigidbody->setFriction(0.5);
-                      (*itlink)->_rigidbody->setRestitution(0.8);  //0.65
                     }
-                  }
-                  else{
-                      FOREACH(itlink,pinfo->vlinks) { 
+                }
+            } else {
+                //do nothing
+            }
+            
+            FOREACHC(po, pbody->GetLinks()) {
+                if ((*po)->IsStatic() ){
+                    FOREACH(itlink,pinfo->vlinks) { 
+                        (*itlink)->_rigidbody->setFriction(0.5);
+                        (*itlink)->_rigidbody->setRestitution(0.8);  //0.65
+                    }
+                } else {
+                    FOREACH(itlink,pinfo->vlinks) { 
                         (*itlink)->_rigidbody->setFriction(_global_friction);
                         (*itlink)->_rigidbody->setRestitution(_global_restitution);
                         (*itlink)->_rigidbody->setDamping(_linear_damping,_rotation_damping);
-                  
-                  }
-             }
+                    }
+                }
             }
         }
         return !!pinfo;
     }
-
 
     virtual void RemoveKinBody(KinBodyPtr pbody)
     {
@@ -665,6 +640,10 @@ public:
         _space->Synchronize();
         int maxSubSteps = 0;  // --> reduced sub steps
         //_dynamicsWorld->applyGravity();
+        if (!_dynamicsWorld) {
+            RAVELOG_ERROR("Dynamics world does not exist!");
+            return;
+        }
         _dynamicsWorld->stepSimulation(0.005,maxSubSteps); //-> reduced elapse time
 
         vector<KinBodyPtr> vbodies;

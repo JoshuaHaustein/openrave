@@ -1222,6 +1222,7 @@ public:
     {
         return _penv->SetPhysicsEngine(openravepy::GetPhysicsEngine(pengine));
     }
+
     object GetPhysicsEngine() {
         return object(openravepy::toPyPhysicsEngine(_penv->GetPhysicsEngine(),shared_from_this()));
     }

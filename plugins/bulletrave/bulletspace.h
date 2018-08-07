@@ -154,6 +154,7 @@ private:
         pinfo->_bulletspace = weak_space();
         pinfo->vlinks.reserve(pbody->GetLinks().size());
 
+        RAVELOG_DEBUG(str(boost::format("Running over all links of body %s\n") % pbody->GetName()));
         FOREACHC(itlink, pbody->GetLinks()) {
             boost::shared_ptr<KinBodyInfo::LINK> link(new KinBodyInfo::LINK());
 
@@ -161,6 +162,7 @@ private:
             link->shape.reset(pshapeparent);
             pshapeparent->setMargin(fmargin);     // need to set margin very small for collision : 0.000001
 
+            // RAVELOG_DEBUG("Running over all geometries of link\n");
             // add all the correct geometry objects
             FOREACHC(itgeom, (*itlink)->GetGeometries()) {
                 boost::shared_ptr<btCollisionShape> child;
@@ -200,11 +202,16 @@ private:
                             btConvexHullShape* convexShape = new btConvexHullShape();
                             convexShape->setLocalScaling(btVector3(1,1,1));
                             //ofstream f((*itlink)->GetName().c_str());
-                            for (int i=0; i< hull->numVertices(); i++) {
-                                convexShape->addPoint(hull->getVertexPointer()[i]);
-                                //f << hull->getVertexPointer()[i].getX() << " " << hull->getVertexPointer()[i].getY() << " " << hull->getVertexPointer()[i].getZ() << endl;
+                            if (hull->numVertices() > 0) {
+                                for (int i=0; i< hull->numVertices(); i++) {
+                                    convexShape->addPoint(hull->getVertexPointer()[i]);
+                                    //f << hull->getVertexPointer()[i].getX() << " " << hull->getVertexPointer()[i].getY() << " " << hull->getVertexPointer()[i].getZ() << endl;
+                                }
+                                RAVELOG_DEBUG(str(boost::format("Created a convex hull with %i vertices") % hull->numVertices()));
+                                child.reset(convexShape);
+                            } else {
+                                RAVELOG_WARN(str(boost::format("Failed to create convex hull for a geometry of link %s of body %s") % (*itlink)->GetName() % pbody->GetName()));
                             }
-                            child.reset(convexShape);
                             delete ptrimesh;
                         }
                         else {
@@ -230,19 +237,21 @@ private:
                 child->setMargin(fmargin);     // need to set margin very small (we're not simulating anyway)
                 pshapeparent->addChildShape(GetBtTransform(geom->GetTransform()), child.get());
             }
+            // RAVELOG_DEBUG("Loop over geometries for this link finished.\n");
 
             link->plink = *itlink;
             link->tlocal = (*itlink)->GetLocalMassFrame();
 
             if( _bPhysics ) {
+                // RAVELOG_DEBUG("Setting physics parameters for current link\n");
                 // set the mass and inertia and extract the eigenvectors of the tensor
                 btVector3 localInertia = GetBtVector((*itlink)->GetPrincipalMomentsOfInertia());
 		
                 dReal mass = (*itlink)->GetMass();
                 // -> bullet expects static objects to have zero mass                
-		if((*itlink)->IsStatic()){
-			mass = 0;
-		}
+                if((*itlink)->IsStatic()){
+                    mass = 0;
+                }
                 if( mass < 0 ) {
                     RAVELOG_WARN(str(boost::format("body %s:%s mass is %f. filling dummy values")%pbody->GetName()%(*itlink)->GetName()%mass));
                     mass = 1e-7;
@@ -254,8 +263,8 @@ private:
                 rbInfo.m_startWorldTransform = GetBtTransform((*itlink)->GetTransform()*link->tlocal);
                 link->_rigidbody.reset(new btRigidBody(rbInfo));
                 link->obj = link->_rigidbody;
-            }
-            else {
+            } else {
+                // RAVELOG_DEBUG("No physics, adding collision shape body current link.\n");
                 link->obj.reset(new btCollisionObject());
                 link->obj->setCollisionShape(pshapeparent);
                 link->obj->setWorldTransform(GetBtTransform((*itlink)->GetTransform()*link->tlocal));
@@ -280,8 +289,10 @@ private:
             link->obj->activate(true);
             pinfo->vlinks.push_back(link);
         }
+        // RAVELOG_DEBUG("Loop over links of this body finished.\n");
 
         if( _bPhysics ) {
+            // RAVELOG_DEBUG("Settings joints for body\n");
             vector<KinBody::JointPtr> vbodyjoints; vbodyjoints.reserve(pbody->GetJoints().size()+pbody->GetPassiveJoints().size());
             vbodyjoints.insert(vbodyjoints.end(),pbody->GetJoints().begin(),pbody->GetJoints().end());
             vbodyjoints.insert(vbodyjoints.end(),pbody->GetPassiveJoints().begin(),pbody->GetPassiveJoints().end());
@@ -367,6 +378,7 @@ private:
 
         pinfo->_geometrycallback = pbody->RegisterChangeCallback(KinBody::Prop_LinkGeometry, boost::bind(&BulletSpace::GeometryChangedCallback,boost::bind(&utils::sptr_from<BulletSpace>, weak_space()),KinBodyWeakPtr(pbody)));
         _Synchronize(pinfo);
+        // RAVELOG_DEBUG(str(boost::format("Initializing body %s finished\n") % pbody->GetName()));
         return pinfo;
     }
 
