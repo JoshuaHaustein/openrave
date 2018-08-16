@@ -112,6 +112,57 @@ public:
     CollisionReportPtr report;
 };
 
+class PyContinuousCollisionReport 
+{
+    public:
+        PyContinuousCollisionReport() : report(new ContinuousCollisionReport()) {
+        }
+        PyContinuousCollisionReport(ContinuousCollisionReportPtr report) : report(report) {
+        }
+        virtual ~PyContinuousCollisionReport() {
+        }
+
+        void init(PyEnvironmentBasePtr pyenv)
+        {
+            if( !!report->plink ) {
+                plink = openravepy::toPyKinBodyLink(boost::const_pointer_cast<KinBody::Link>(report->plink), pyenv);
+            }
+            else {
+                plink = object();
+            }
+            initialTf = openravepy::toPyArray(report->initialTf);
+            targetTf = openravepy::toPyArray(report->targetTf);
+            // copy collisions
+            boost::python::list newCollisions;
+            FOREACHC(itcol, report->vCollisions) {
+                dReal impactTime = std::get<0>(*itcol);
+                object tf = openravepy::toPyArray(std::get<1>(*itcol));
+                object pyCollidingLink;
+                auto link_ptr = std::get<2>(*itcol);
+                if (!!link_ptr) {
+                    pyCollidingLink = openravepy::toPyKinBodyLink(boost::const_pointer_cast<KinBody::Link>(link_ptr), pyenv);
+                }
+                newCollisions.append(boost::python::make_tuple(impactTime, tf, pyCollidingLink));
+            }
+            vCollisions = newCollisions;
+        }
+
+        string __str__()
+        {
+            return report->__str__();
+        }
+
+        object __unicode__() {
+            return ConvertStringToUnicode(__str__());
+        }
+
+        object plink;
+        object initialTf;
+        object targetTf;
+        boost::python::list vCollisions;
+        ContinuousCollisionReportPtr report;
+};
+
 class PyCollisionCheckerBase : public PyInterfaceBase
 {
 protected:
@@ -564,6 +615,21 @@ public:
         return bCollision;
     }
 
+    bool CheckContinuousCollision(object o1, object tf, PyContinuousCollisionReportPtr pReport) 
+    {
+        CHECK_POINTER(o1);
+        const Transform ctf = ExtractTransform(tf);
+        KinBody::LinkConstPtr plink = openravepy::GetKinBodyLinkConst(o1);
+        bool bCollision = false;
+        if( !!plink ) {
+            bCollision = _pCollisionChecker->CheckContinuousCollision(plink, ctf, openravepy::GetContinuousCollisionReport(pReport));
+        } else {
+           throw OPENRAVE_EXCEPTION_FORMAT0(_("CheckCollision(object) invalid argument"),ORE_InvalidArguments);
+        }
+        openravepy::UpdateContinuousCollisionReport(pReport, _pyenv);
+        return bCollision;
+    }
+
     virtual bool CheckSelfCollision(object o1, PyCollisionReportPtr pReport)
     {
         KinBody::LinkConstPtr plink1 = openravepy::GetKinBodyLinkConst(o1);
@@ -635,6 +701,48 @@ void UpdateCollisionReport(object o, PyEnvironmentBasePtr pyenv)
     }
 }
 
+ContinuousCollisionReportPtr GetContinuousCollisionReport(object o)
+{
+    if( IS_PYTHONOBJECT_NONE(o) ) {
+        return ContinuousCollisionReportPtr();
+    }
+    extract<PyContinuousCollisionReportPtr> pyreport(o);
+    if( pyreport.check() ) {
+        return ((PyContinuousCollisionReportPtr)pyreport)->report;
+    }
+    return ContinuousCollisionReportPtr();
+}
+
+ContinuousCollisionReportPtr GetContinuousCollisionReport(PyContinuousCollisionReportPtr p)
+{
+    return !p ? ContinuousCollisionReportPtr() : p->report;
+}
+
+PyContinuousCollisionReportPtr toPyContinuousCollisionReport(ContinuousCollisionReportPtr p, PyEnvironmentBasePtr pyenv)
+{
+    if( !p ) {
+        return PyContinuousCollisionReportPtr();
+    }
+    PyContinuousCollisionReportPtr pyreport(new PyContinuousCollisionReport(p));
+    pyreport->init(pyenv);
+    return pyreport;
+}
+
+void UpdateContinuousCollisionReport(PyContinuousCollisionReportPtr p, PyEnvironmentBasePtr pyenv)
+{
+    if( !!p ) {
+        p->init(pyenv);
+    }
+}
+
+void UpdateContinuousCollisionReport(object o, PyEnvironmentBasePtr pyenv)
+{
+    extract<PyContinuousCollisionReportPtr> pyreport(o);
+    if( pyreport.check() ) {
+        return UpdateContinuousCollisionReport((PyContinuousCollisionReportPtr)pyreport, pyenv);
+    }
+}
+
 PyCollisionCheckerBasePtr RaveCreateCollisionChecker(PyEnvironmentBasePtr pyenv, const std::string& name)
 {
     CollisionCheckerBasePtr p = OpenRAVE::RaveCreateCollisionChecker(GetEnvironment(pyenv), name);
@@ -681,6 +789,14 @@ void init_openravepy_collisionchecker()
     .def("__str__",&PyCollisionReport::__str__)
     .def("__unicode__",&PyCollisionReport::__unicode__)
     ;
+    class_<PyContinuousCollisionReport, boost::shared_ptr<PyContinuousCollisionReport> >("ContinuousCollisionReport", DOXY_CLASS(ContinuousCollisionReport))
+    .def_readonly("plink",&PyContinuousCollisionReport::plink)
+    .def_readonly("initialTf",&PyContinuousCollisionReport::initialTf)
+    .def_readonly("targetTf",&PyContinuousCollisionReport::targetTf)
+    .def_readonly("vCollisions",&PyContinuousCollisionReport::vCollisions)
+    .def("__str__",&PyContinuousCollisionReport::__str__)
+    .def("__unicode__",&PyContinuousCollisionReport::__unicode__)
+    ;
 
     bool (PyCollisionCheckerBase::*pcolb)(PyKinBodyPtr) = &PyCollisionCheckerBase::CheckCollision;
     bool (PyCollisionCheckerBase::*pcolbr)(PyKinBodyPtr, PyCollisionReportPtr) = &PyCollisionCheckerBase::CheckCollision;
@@ -700,6 +816,7 @@ void init_openravepy_collisionchecker()
     bool (PyCollisionCheckerBase::*pcolybr)(boost::shared_ptr<PyRay>, PyKinBodyPtr, PyCollisionReportPtr) = &PyCollisionCheckerBase::CheckCollision;
     bool (PyCollisionCheckerBase::*pcoly)(boost::shared_ptr<PyRay>) = &PyCollisionCheckerBase::CheckCollision;
     bool (PyCollisionCheckerBase::*pcolyr)(boost::shared_ptr<PyRay>, PyCollisionReportPtr) = &PyCollisionCheckerBase::CheckCollision;
+    bool (PyCollisionCheckerBase::*pcolltr)(object, object, PyContinuousCollisionReportPtr) = &PyCollisionCheckerBase::CheckContinuousCollision;
 
     class_<PyCollisionCheckerBase, boost::shared_ptr<PyCollisionCheckerBase>, bases<PyInterfaceBase> >("CollisionChecker", DOXY_CLASS(CollisionCheckerBase), no_init)
     .def("InitEnvironment", &PyCollisionCheckerBase::InitEnvironment, DOXY_FN(CollisionCheckerBase, InitEnvironment))
@@ -728,6 +845,7 @@ void init_openravepy_collisionchecker()
     .def("CheckCollision",pcolybr,args("ray","body","report"), DOXY_FN(CollisionCheckerBase,CheckCollision "const RAY; KinBodyConstPtr; CollisionReportPtr"))
     .def("CheckCollision",pcoly,args("ray"), DOXY_FN(CollisionCheckerBase,CheckCollision "const RAY; CollisionReportPtr"))
     .def("CheckCollision",pcolyr,args("ray", "report"), DOXY_FN(CollisionCheckerBase,CheckCollision "const RAY; CollisionReportPtr"))
+    .def("CheckContinuousCollision",pcolltr,args("link", "tf", "report"), DOXY_FN(CollisionCheckerBase,CheckContinuousCollision "KinBody::LinkConstPtr; Transform; ContinuousCollisionReportPtr"))
     .def("CheckSelfCollision",&PyCollisionCheckerBase::CheckSelfCollision,args("linkbody", "report"), DOXY_FN(CollisionCheckerBase,CheckSelfCollision "KinBodyConstPtr, CollisionReportPtr"))
     .def("CheckCollisionRays",&PyCollisionCheckerBase::CheckCollisionRays,
          CheckCollisionRays_overloads(args("rays","body","front_facing_only"),

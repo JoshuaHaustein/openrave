@@ -94,6 +94,10 @@ public:
     virtual bool CheckCollision(const RAY& ray, CollisionReportPtr) {
         return false;
     }
+    virtual bool CheckContinuousCollision(KinBody::LinkConstPtr plink, const Transform &tf, ContinuousCollisionReportPtr report) 
+    {
+        return false;
+    }
     virtual bool CheckStandaloneSelfCollision(KinBodyConstPtr pbody, CollisionReportPtr) {
         return false;
     }

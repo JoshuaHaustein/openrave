@@ -15,11 +15,13 @@ using OpenRAVE::ORE_Assert;
 
 // Warning : this is the only place where we use std::shared_ptr (for compatibility with fcl)
 typedef std::shared_ptr<fcl::CollisionGeometry> CollisionGeometryPtr;
+typedef std::shared_ptr<const fcl::CollisionGeometry> CollisionGeometryConstPtr;
 typedef boost::shared_ptr<fcl::CollisionObject> CollisionObjectPtr;
 typedef boost::function<CollisionGeometryPtr (std::vector<fcl::Vec3f> const &points, std::vector<fcl::Triangle> const &triangles) > MeshFactory;
 typedef std::vector<fcl::CollisionObject *> CollisionGroup;
 typedef boost::shared_ptr<CollisionGroup> CollisionGroupPtr;
 typedef std::pair<Transform, CollisionObjectPtr> TransformCollisionPair;
+// typedef std::pair<Transform, CollisionGeometryPtr> TransformCCDGeometryPair;
 
 
 // Helper functions for conversions from OpenRAVE to FCL
@@ -40,6 +42,14 @@ fcl::Quaternion3f ConvertQuaternionToFCL(Vector const &v)
 
 Vector ConvertQuaternionFromFCL(fcl::Quaternion3f const &v) {
     return Vector(v.getW(), v.getX(), v.getY(), v.getZ());
+}
+
+fcl::Transform3f ConvertTransformToFCL(const Transform& tf) {
+    return fcl::Transform3f(ConvertQuaternionToFCL(tf.rot), ConvertVectorToFCL(tf.trans));
+}
+
+Transform ConvertTransformFromFCL(const fcl::Transform3f& tf) {
+    return Transform(ConvertQuaternionFromFCL(tf.getQuatRotation()), ConvertVectorFromFCL(tf.getTranslation()));
 }
 
 fcl::AABB ConvertAABBToFcl(const OpenRAVE::AABB& bv) {
@@ -108,6 +118,7 @@ public:
             //int nLastStamp; ///< Tracks if the collision geometries are up to date wrt the body update stamp. This is for narrow phase collision
             TransformCollisionPair linkBV; ///< pair of the transformation and collision object corresponding to a bounding OBB for the link
             std::vector<TransformCollisionPair> vgeoms; ///< vector of transformations and collision object; one per geometries
+            // std::vector<TransformCCDGeometryPair> vccdGeoms; ///< vector of transformations and collision object for continuous collision checking
             std::string bodylinkname; // for debugging purposes
         };
 
@@ -166,7 +177,7 @@ public:
         : _penv(penv), _userdatakey(userdatakey)
     {
         // After many test, OBB seems to be the only real option (followed by kIOS which is needed for distance checking)
-        SetBVHRepresentation("OBB");
+        SetBVHRepresentation("OBB"); // for continuous collision detection OBBRSS works
     }
 
     virtual ~FCLSpace()
@@ -708,6 +719,7 @@ private:
 
     std::string _bvhRepresentation;
     MeshFactory _meshFactory;
+    // MeshFactory _ccdMeshFactory;
 
     std::set<KinBodyConstPtr> _setInitializedBodies; ///< Set of the kinbody initialized in this space
     std::map< int, std::map< std::string, KinBodyInfoPtr > > _cachedpinfo; ///< Associates to each body id and geometry group name the corresponding kinbody info if already initialized and not currently set as user data

@@ -1923,6 +1923,44 @@ std::string CollisionReport::__str__() const
     return s.str();
 }
 
+std::string ContinuousCollisionReport::__str__() const
+{
+    stringstream s;
+    if (!!plink) {
+        s << "plink: " << plink->GetName() << ", ";
+    } else {
+        s << "plink: None" << ", ";
+    }
+    s << "initialTf: " << initialTf << ", ";
+    s << "targetTf: " << targetTf << ", ";
+    s << "#contacts: " << vCollisions.size();
+    s << ", collisions: ";
+    if( vCollisions.size() > 0 ) {
+        int index = 0;
+        FOREACH(itcollision, vCollisions) {
+            s << "[" << index << "](";
+            s << "t=" << std::get<0>(*itcollision) << ", ";
+            s << "tf=" << std::get<1>(*itcollision) << ", ";
+            auto link_ptr = std::get<2>(*itcollision);
+            if( !!link_ptr) {
+                s << link_ptr->GetParent()->GetName() << ":" << link_ptr->GetName();
+            }
+            s << ")";
+            if (index < vCollisions.size() - 1) s << ", ";
+            ++index;
+        }
+    }
+    return s.str();
+}
+
+void ContinuousCollisionReport::Reset()
+{
+    plink.reset();
+    vCollisions.clear();
+    initialTf.identity();
+    targetTf.identity();
+}
+
 bool PhysicsEngineBase::GetLinkForceTorque(KinBody::LinkConstPtr plink, Vector& force, Vector& torque)
 {
     force = Vector(0,0,0);

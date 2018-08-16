@@ -83,6 +83,8 @@ using OpenRAVE::TransformConstPtr;
 using OpenRAVE::TransformMatrix;
 using OpenRAVE::CollisionReport;
 using OpenRAVE::CollisionReportPtr;
+using OpenRAVE::ContinuousCollisionReport;
+using OpenRAVE::ContinuousCollisionReportPtr;
 using OpenRAVE::RAY;
 using OpenRAVE::InterfaceType;
 using OpenRAVE::InterfaceBase;
@@ -100,8 +102,10 @@ using OpenRAVE::AttributesList;
 
 
 #include <fcl/collision.h>
+#include <fcl/continuous_collision.h>
 #include <fcl/BVH/BVH_model.h>
 #include <fcl/broadphase/broadphase.h>
 #include <fcl/shape/geometric_shapes.h>
+#include <fcl/ccd/motion.h>
 
 #endif

@@ -995,6 +995,21 @@ public:
         return bCollision;
     }
 
+    bool CheckContinuousCollision(object o1, object tf, PyContinuousCollisionReportPtr pReport)
+    {
+        CHECK_POINTER(o1);
+        const Transform ctf = ExtractTransform(tf);
+        KinBody::LinkConstPtr plink = openravepy::GetKinBodyLinkConst(o1);
+        bool bCollision = false;
+        if( !!plink ) {
+            bCollision = _penv->CheckContinuousCollision(plink, ctf, openravepy::GetContinuousCollisionReport(pReport));
+        } else {
+           throw OPENRAVE_EXCEPTION_FORMAT0(_("CheckCollision(object) invalid argument"),ORE_InvalidArguments);
+        }
+        openravepy::UpdateContinuousCollisionReport(pReport,shared_from_this());
+        return bCollision;
+    }
+
     bool Load(const string &filename) {
         return _penv->Load(filename);
     }
@@ -2041,6 +2056,7 @@ Because race conditions can pop up when trying to lock the openrave environment 
         bool (PyEnvironmentBase::*pcolybr)(boost::shared_ptr<PyRay>, PyKinBodyPtr, PyCollisionReportPtr) = &PyEnvironmentBase::CheckCollision;
         bool (PyEnvironmentBase::*pcoly)(boost::shared_ptr<PyRay>) = &PyEnvironmentBase::CheckCollision;
         bool (PyEnvironmentBase::*pcolyr)(boost::shared_ptr<PyRay>, PyCollisionReportPtr) = &PyEnvironmentBase::CheckCollision;
+        bool (PyEnvironmentBase::*pcolltr)(object, object, PyContinuousCollisionReportPtr) = &PyEnvironmentBase::CheckContinuousCollision;
 
         void (PyEnvironmentBase::*Lock1)() = &PyEnvironmentBase::Lock;
         bool (PyEnvironmentBase::*Lock2)(float) = &PyEnvironmentBase::Lock;
@@ -2104,6 +2120,7 @@ Because race conditions can pop up when trying to lock the openrave environment 
                     .def("CheckCollisionRays",&PyEnvironmentBase::CheckCollisionRays,
                          CheckCollisionRays_overloads(args("rays","body","front_facing_only"),
                                                       "Check if any rays hit a body and returns their contact points along with a vector specifying if a collision occured or not. Rays is a Nx6 array, first 3 columsn are position, last 3 are direction*range. If a body is provided, only the intersection with this body is tested."))
+                    .def("CheckContinuousCollision",pcolltr,args("link", "tf", "report"), DOXY_FN(EnvironmentBase,CheckContinuousCollision "KinBody::LinkConstPtr; Transformation matrix, ContinuousCollisionReportPtr"))
                     .def("LoadURI",&PyEnvironmentBase::LoadURI,LoadURI_overloads(args("filename","atts"), DOXY_FN(EnvironmentBase,LoadURI)))
                     .def("Load",load1,args("filename"), DOXY_FN(EnvironmentBase,Load))
                     .def("Load",load2,args("filename","atts"), DOXY_FN(EnvironmentBase,Load))

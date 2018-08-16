@@ -6,6 +6,7 @@
 #include <boost/lexical_cast.hpp>
 #include <openrave/utils.h>
 #include <boost/function_output_iterator.hpp>
+#include <algorithm>
 
 #include "fclspace.h"
 #include "fclmanagercache.h"
@@ -58,7 +59,7 @@ class FCLCollisionChecker : public OpenRAVE::CollisionCheckerBase
 {
 public:
     class CollisionCallbackData {
-public:
+        public:
         CollisionCallbackData(boost::shared_ptr<FCLCollisionChecker> pchecker, CollisionReportPtr report, const std::vector<KinBodyConstPtr>& vbodyexcluded = std::vector<KinBodyConstPtr>(), const std::vector<LinkConstPtr>& vlinkexcluded = std::vector<LinkConstPtr>()) : _pchecker(pchecker), _report(report), _vbodyexcluded(vbodyexcluded), _vlinkexcluded(vlinkexcluded), bselfCollision(false), _bStopChecking(false), _bCollision(false)
         {
             _bHasCallbacks = _pchecker->GetEnv()->HasRegisteredCollisionCallbacks();
@@ -105,8 +106,78 @@ public:
         bool _bHasCallbacks; ///< true if there's callbacks registered in the environment
         std::list<EnvironmentBase::CollisionCallbackFn> _listcallbacks;
     };
-
     typedef boost::shared_ptr<CollisionCallbackData> CollisionCallbackDataPtr;
+
+    class ContinuousCollisionCallbackData { 
+        public:
+            ContinuousCollisionCallbackData(boost::shared_ptr<FCLCollisionChecker> pchecker,
+                                            const fcl::Transform3f& initialTf,
+                                            const fcl::Transform3f& targetTf,
+                                            // const fcl::InterpMotion& imotion,
+                                            ContinuousCollisionReportPtr report,
+                                            CollisionObjectPtr query_box,
+                                            const std::vector<KinBodyConstPtr>& vbodyexcluded = std::vector<KinBodyConstPtr>(),
+                                            const std::vector<LinkConstPtr>& vlinkexcluded = std::vector<LinkConstPtr>()) :
+                _pchecker(pchecker), _initialTf(initialTf), _targetTf(targetTf), _report(report), _query_box(query_box),
+                _vbodyexcluded(vbodyexcluded), _vlinkexcluded(vlinkexcluded), _bStopChecking(false), _bCollision(false) 
+            {
+                _cont_request.ccd_motion_type = fcl::CCDMotionType::CCDM_LINEAR;
+                switch(report->algorithm_type) {
+                    case ContinuousCollisionReport::CCDAlgorithmType::CCDAT_Naive:
+                    {
+                        _cont_request.ccd_solver_type = fcl::CCDSolverType::CCDC_NAIVE;
+                        _cont_request.num_max_iterations = report->num_max_iterations;
+                        _cont_request.toc_err = report->sampling_resolution;
+                        break;
+                    }
+                    case ContinuousCollisionReport::CCDAlgorithmType::CCDAT_Conservative:
+                    {
+                        _cont_request.ccd_solver_type = fcl::CCDSolverType::CCDC_CONSERVATIVE_ADVANCEMENT; 
+                    }
+                }
+                // _bHasCallbacks = _pchecker->GetEnv()->HasRegisteredCollisionCallbacks();
+                // if( _bHasCallbacks && !_report ) {
+                //     _report.reset(new CollisionReport());
+                // }
+
+                // // if( !!report && !!(_pchecker->GetCollisionOptions() & OpenRAVE::CO_Contacts) ) {
+                // //     _request.num_max_contacts = _pchecker->GetNumMaxContacts();
+                // //     _request.enable_contact = true;
+                // // } else {
+                // //     _request.enable_contact = false; // explicitly disable
+                // // }
+
+                // // set the gjk solver (collision checking between convex bodies) so that we can use hints
+                // _request.gjk_solver_type = fcl::GST_INDEP;
+
+                // if( !!_report ) {
+                //     _report->Reset(_pchecker->GetCollisionOptions());
+                // }
+            }
+
+            const std::list<EnvironmentBase::CollisionCallbackFn>& GetCallbacks() {
+                if( _bHasCallbacks &&( _listcallbacks.size() == 0) ) {
+                    _pchecker->GetEnv()->GetRegisteredCollisionCallbacks(_listcallbacks);
+                }
+                return _listcallbacks;
+            }
+
+            boost::shared_ptr<FCLCollisionChecker> _pchecker;
+            // fcl::InterpMotion motion;
+            fcl::Transform3f _initialTf;
+            fcl::Transform3f _targetTf;
+            ContinuousCollisionReportPtr _report;
+            CollisionObjectPtr _query_box;
+            fcl::ContinuousCollisionRequest _cont_request;
+            fcl::ContinuousCollisionResult _cont_result;
+            std::vector<KinBodyConstPtr> const& _vbodyexcluded;
+            std::vector<LinkConstPtr> const& _vlinkexcluded;
+            bool _bStopChecking;  ///< if true, then stop the collision checking loop
+            bool _bCollision; ///< true if a collision has been detected
+            bool _bHasCallbacks; ///< true if there's callbacks registered in the environment
+            std::list<EnvironmentBase::CollisionCallbackFn> _listcallbacks;
+    };
+    typedef boost::shared_ptr<ContinuousCollisionCallbackData> ContinuousCollisionCallbackDataPtr;
 
     FCLCollisionChecker(OpenRAVE::EnvironmentBasePtr penv, std::istream& sinput)
         : OpenRAVE::CollisionCheckerBase(penv), _broadPhaseCollisionManagerAlgorithm("DynamicAABBTree2"), _bIsSelfCollisionChecker(true) // DynamicAABBTree2 should be slightly faster than Naive
@@ -118,7 +189,6 @@ public:
         _numMaxContacts = std::numeric_limits<int>::max();
         _nGetEnvManagerCacheClearCount = 100000;
         __description = ":Interface Author: Kenji Maillard\n\nFlexible Collision Library collision checker";
-
         SETUP_STATISTICS(_statistics, _userdatakey, GetEnv()->GetId());
 
         // TODO : Consider removing these which could be more harmful than anything else
@@ -191,7 +261,7 @@ public:
 
     const std::string& GetGeometryGroup() const
     {
-        return _fclspace->GetGeometryGroup();
+        return _fclspace->GetGeometryGroup(); // ccdfclspace has the same geometry group
     }
 
     void SetBodyGeometryGroup(KinBodyConstPtr pbody, const std::string& groupname)
@@ -586,6 +656,67 @@ public:
         return false; //TODO
     }
 
+    virtual bool CheckContinuousCollision(KinBody::LinkConstPtr plink, const Transform &tf, ContinuousCollisionReportPtr report = ContinuousCollisionReportPtr()) 
+    {
+        // if( !!report ) {
+        // }
+        report->Reset();
+        report->plink = plink;
+        report->initialTf = plink->GetTransform();
+        report->targetTf = tf;
+        if (report->algorithm_type == ContinuousCollisionReport::CCDAlgorithmType::CCDAT_Conservative) {
+            std::string bvh_type = GetBVHRepresentation();
+            if (bvh_type != "OBBRSS" && bvh_type != "RSS") {
+                RAVELOG_WARN("The current bounding volume representation (BVH) does not support conservative advancement"
+                " for continuous collision checking. Switching to naive algorithm. Supporting representations are OBBRSS and RSS");
+                report->algorithm_type = ContinuousCollisionReport::CCDAlgorithmType::CCDAT_Naive;
+            }
+        }
+
+        // TODO support excluded links
+        // if( !plink->IsEnabled() || find(vlinkexcluded.begin(), vlinkexcluded.end(), plink) != vlinkexcluded.end() ) {
+        //     return false;
+        // }
+
+        _fclspace->Synchronize();
+        // CollisionObjectPtr pcollLink = _fclspace->GetLinkBV(plink);
+        // if( !pcollLink ) {
+        //     return false;
+        // }
+
+        // construct motion for the link
+        fcl::Transform3f initial_tf(ConvertQuaternionToFCL(report->initialTf.rot),
+                                    ConvertVectorToFCL(report->initialTf.trans)); 
+        fcl::Transform3f target_tf(ConvertQuaternionToFCL(report->targetTf.rot),
+                                    ConvertVectorToFCL(report->targetTf.trans)); 
+
+        // build a bounding box from the motion
+        auto radius = std::sqrt(plink->ComputeLocalAABB().extents.lengthsqr3());
+        auto bb_geom = std::make_shared<fcl::Box>();
+        bb_geom->side = fcl::abs(target_tf.getTranslation() - initial_tf.getTranslation());
+        bb_geom->side += 2.0 * radius;
+        fcl::Vec3f box_pos = 0.5 * (initial_tf.getTranslation() + target_tf.getTranslation());
+        CollisionObjectPtr bounding_box(new fcl::CollisionObject(bb_geom, fcl::Transform3f(box_pos))); 
+
+        // now perform continuous collision check with all bodies/links that are within this bounding box
+        std::set<KinBodyConstPtr> attachedBodies;
+        plink->GetParent()->GetAttached(attachedBodies);
+        BroadPhaseCollisionManagerPtr envManager = _GetEnvManager(attachedBodies);
+
+        // TODO support excluded links and bodies
+        ContinuousCollisionCallbackData query(shared_checker(), initial_tf, target_tf, report, bounding_box); //, vbodyexcluded, vlinkexcluded);
+        ADD_TIMING(_statistics);
+        envManager->collide(bounding_box.get(), &query, &FCLCollisionChecker::CheckNarrowPhaseContinuousCollision);
+        // sort collision results
+        struct comparator {
+            bool operator()(const std::tuple<OpenRAVE::dReal, Transform, LinkConstPtr>& a, const std::tuple<OpenRAVE::dReal, Transform, LinkConstPtr>& b) {
+                return std::get<0>(a) <= std::get<0>(b);
+            }
+        } col_comparator;
+        std::sort(report->vCollisions.begin(), report->vCollisions.end(), col_comparator);
+        return query._bCollision;
+    }
+
     virtual bool CheckStandaloneSelfCollision(KinBodyConstPtr pbody, CollisionReportPtr report = CollisionReportPtr())
     {
         START_TIMING_OPT(_statistics, "BodySelf",_options,pbody->IsRobot());
@@ -848,6 +979,80 @@ private:
         // TODO
         return false;
     }
+
+    static bool CheckNarrowPhaseContinuousCollision(fcl::CollisionObject *o1, fcl::CollisionObject *o2, void *data) {
+        ContinuousCollisionCallbackData* pcb = static_cast<ContinuousCollisionCallbackData*>(data);
+        return pcb->_pchecker->CheckNarrowPhaseContinuousCollision(o1, o2, pcb);
+    }
+
+    bool CheckNarrowPhaseContinuousCollision(fcl::CollisionObject *o1, fcl::CollisionObject *o2, ContinuousCollisionCallbackData* pcb)
+    {
+        if( pcb->_bStopChecking ) {
+            return true;     // don't test anymore
+        }
+
+        LinkConstPtr plink1 = pcb->_report->plink;
+        LinkConstPtr plink2;
+        if (o1 == pcb->_query_box.get()) {
+            plink2 = GetCollisionLink(*o2);
+        } else if (o2 == pcb->_query_box.get()) {
+            plink2 = GetCollisionLink(*o1);
+        } else {
+            // TODO throw exception
+        }
+
+        // Invariant plink1 - link for which continuous collision checking is done
+        // plink2 - candidate for collision checking
+        // Proceed to the next if the links are attached or not enabled
+        if (!plink2->IsEnabled()) {
+            return false;
+        }
+
+        // TODO add option to ignore self collisions
+        // if( !pcb->bselfCollision && plink1->GetParent()->IsAttached(KinBodyConstPtr(plink2->GetParent())) ) {
+        //     return false;
+        // }
+
+        // TODO support excluded body and links
+        // if( IsIn<KinBodyConstPtr>(plink1->GetParent(), pcb->_vbodyexcluded) ||
+        //     IsIn<KinBodyConstPtr>(plink2->GetParent(), pcb->_vbodyexcluded) ||
+        //     IsIn<LinkConstPtr>(plink1, pcb->_vlinkexcluded) ||
+        //     IsIn<LinkConstPtr>(plink2, pcb->_vlinkexcluded) ) {
+        //     return false;
+        // }
+
+        RAVELOG_DEBUG_FORMAT("Performing continuous collision check between links %s:%s and %s:%s",
+                             plink1->GetParent()->GetName() % plink1->GetName() % plink2->GetParent()->GetName() % plink2->GetName());
+
+        LinkInfoPtr plink1_info = _fclspace->GetLinkInfo(plink1), plink2_info = _fclspace->GetLinkInfo(plink2);
+        fcl::Transform3f static_tf(ConvertTransformToFCL(plink2->GetTransform()));
+
+        FOREACH(itgeompair1, plink1_info->vgeoms) {
+            FOREACH(itgeompair2, plink2_info->vgeoms) {
+                pcb->_cont_result.is_collide = false;
+                fcl::Transform3f geom2_tf = static_tf * ConvertTransformToFCL(itgeompair2->first);
+                fcl::Transform3f local_tf = ConvertTransformToFCL(itgeompair1->first);
+                fcl::continuousCollide(itgeompair1->second.get()->getCollisionGeometry(),
+                                       pcb->_initialTf * local_tf,
+                                       pcb->_targetTf * local_tf,
+                                       itgeompair2->second.get()->getCollisionGeometry(),
+                                       geom2_tf,
+                                       geom2_tf,
+                                       pcb->_cont_request,
+                                       pcb->_cont_result);
+                if (pcb->_cont_result.is_collide) {
+                    pcb->_report->vCollisions.push_back(std::make_tuple(
+                        pcb->_cont_result.time_of_contact,
+                        ConvertTransformFromFCL(pcb->_cont_result.contact_tf1),
+                        plink2
+                    ));
+                    pcb->_bCollision = true;
+                }
+            }
+        }
+        return false; // always check with all links
+    }
+
 
 #ifdef NARROW_COLLISION_CACHING
     static CollisionPair MakeCollisionPair(fcl::CollisionObject* o1, fcl::CollisionObject* o2)

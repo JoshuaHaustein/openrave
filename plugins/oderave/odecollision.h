@@ -706,6 +706,12 @@ public:
         return cb._bCollision;
     }
 
+    virtual bool CheckContinuousCollision(KinBody::LinkConstPtr plink, const Transform &tf, ContinuousCollisionReportPtr report = ContinuousCollisionReportPtr()) 
+    {
+        RAVELOG_WARN("CheckContinuousCollision not implemented in ode\n");
+        return false;
+    }
+
     virtual bool CheckStandaloneSelfCollision(KinBodyConstPtr pbody, CollisionReportPtr report)
     {
         if( _options & OpenRAVE::CO_Distance ) {

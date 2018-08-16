@@ -355,6 +355,11 @@ public:
         throw openrave_exception("PQP collision checker does not support ray collision queries\n");
     }
 
+    virtual bool CheckContinuousCollision(KinBody::LinkConstPtr plink, const Transform &tf, ContinuousCollisionReportPtr report = ContinuousCollisionReportPtr()) 
+    {
+        throw openrave_exception("PQP collision checker does not support continuous collision queries\n");
+    }
+
     virtual bool CheckStandaloneSelfCollision(KinBodyConstPtr pbody, CollisionReportPtr report)
     {
         if( pbody->GetLinks().size() <= 1 ) {

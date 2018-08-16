@@ -414,7 +414,7 @@ public:
         vector<KinBodyPtr> vbodies;
         GetEnv()->GetBodies(vbodies);
         FOREACHC(itbody, vbodies)
-        InitKinBody(*itbody);
+            InitKinBody(*itbody);
 
         return true;
     }
@@ -774,6 +774,12 @@ public:
         }
 
         return bCollision;
+    }
+
+    virtual bool CheckContinuousCollision(KinBody::LinkConstPtr plink, const Transform &tf, ContinuousCollisionReportPtr report = ContinuousCollisionReportPtr()) 
+    {
+        RAVELOG_WARN("CheckContinuousCollision not implemented in bullet\n");
+        return false;
     }
 
     virtual bool CheckStandaloneSelfCollision(KinBodyConstPtr pbody, CollisionReportPtr report)

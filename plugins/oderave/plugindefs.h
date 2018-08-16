@@ -84,6 +84,8 @@ using OpenRAVE::TransformConstPtr;
 using OpenRAVE::TransformMatrix;
 using OpenRAVE::CollisionReport;
 using OpenRAVE::CollisionReportPtr;
+using OpenRAVE::ContinuousCollisionReport;
+using OpenRAVE::ContinuousCollisionReportPtr;
 using OpenRAVE::RAY;
 using OpenRAVE::InterfaceType;
 using OpenRAVE::InterfaceBase;

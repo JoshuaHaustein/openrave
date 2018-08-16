@@ -1019,6 +1019,13 @@ public:
         return _pCurrentChecker->CheckCollision(ray,report);
     }
 
+    virtual bool CheckContinuousCollision(KinBody::LinkConstPtr plink, const Transform &tf, ContinuousCollisionReportPtr report) 
+    {
+        EnvironmentMutex::scoped_lock lockenv(GetMutex());
+        CHECK_COLLISION_BODY(plink->GetParent());
+        return _pCurrentChecker->CheckContinuousCollision(plink, tf,report);
+    }
+
     virtual bool CheckStandaloneSelfCollision(KinBodyConstPtr pbody, CollisionReportPtr report)
     {
         EnvironmentMutex::scoped_lock lockenv(GetMutex());

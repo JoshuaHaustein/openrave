@@ -307,6 +307,7 @@ enum InterfaceType
 };
 
 class CollisionReport;
+class ContinuousCollisionReport;
 class InterfaceBase;
 class IkSolverBase;
 class TrajectoryBase;
@@ -328,6 +329,8 @@ class IkReturn;
 
 typedef boost::shared_ptr<CollisionReport> CollisionReportPtr;
 typedef boost::shared_ptr<CollisionReport const> CollisionReportConstPtr;
+typedef boost::shared_ptr<ContinuousCollisionReport> ContinuousCollisionReportPtr;
+typedef boost::shared_ptr<ContinuousCollisionReport const> ContinuousCollisionReportConstPtr;
 typedef boost::shared_ptr<InterfaceBase> InterfaceBasePtr;
 typedef boost::shared_ptr<InterfaceBase const> InterfaceBaseConstPtr;
 typedef boost::weak_ptr<InterfaceBase> InterfaceBaseWeakPtr;
