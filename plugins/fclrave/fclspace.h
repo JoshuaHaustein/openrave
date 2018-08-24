@@ -67,6 +67,64 @@ CollisionGeometryPtr ConvertMeshToFCL(std::vector<fcl::Vec3f> const &points,std:
     return model;
 }
 
+fcl::Vec3f const* GetVertices(fcl::CollisionObject* o) {
+    const fcl::CollisionGeometry* geom = o->getCollisionGeometry();
+    switch (geom->getNodeType()) {
+        case fcl::NODE_TYPE::BV_OBB:
+        {
+            auto const* spec_geom = dynamic_cast<fcl::BVHModel<fcl::OBB> const* >(geom);
+            return spec_geom->vertices;
+        }
+        case fcl::NODE_TYPE::BV_OBBRSS:
+        {
+            auto const* spec_geom = dynamic_cast<fcl::BVHModel<fcl::OBBRSS> const* >(geom);
+            return spec_geom->vertices;
+        }
+        case fcl::NODE_TYPE::BV_RSS:
+        {
+            auto const* spec_geom = dynamic_cast<fcl::BVHModel<fcl::RSS> const* >(geom);
+            return spec_geom->vertices;
+        }
+        default:
+        {
+            RAVELOG_ERROR("Unsupported geometry type encountered");
+            return nullptr;
+        }
+    }
+}
+
+fcl::Triangle GetTriangle(fcl::CollisionObject* o, int t_index) {
+    if (t_index < 0) {
+        return fcl::Triangle();
+    }
+    const fcl::CollisionGeometry* geom = o->getCollisionGeometry();
+    switch (geom->getNodeType()) {
+        case fcl::NODE_TYPE::BV_OBB:
+        {
+            auto const* spec_geom = dynamic_cast<fcl::BVHModel<fcl::OBB> const* >(geom);
+            assert(!!spec_geom);
+            return spec_geom->tri_indices[t_index];
+        }
+        case fcl::NODE_TYPE::BV_OBBRSS:
+        {
+            auto const* spec_geom = dynamic_cast<fcl::BVHModel<fcl::OBBRSS> const* >(geom);
+            assert(!!spec_geom);
+            return spec_geom->tri_indices[t_index];
+        }
+        case fcl::NODE_TYPE::BV_RSS:
+        {
+            auto const* spec_geom = dynamic_cast<fcl::BVHModel<fcl::RSS> const* >(geom);
+            assert(!!spec_geom);
+            return spec_geom->tri_indices[t_index];
+        }
+        default:
+        {
+            RAVELOG_ERROR("Unsupported geometry type encountered");
+            return fcl::Triangle();
+        }
+    }
+}
+
 /// \brief fcl spaces manages the individual collision objects and sets up callbacks to track their changes.
 ///
 /// It does not know or manage the broadphase manager

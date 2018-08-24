@@ -30,6 +30,8 @@ endif()
 
 
 if( FCL_FOUND )
+  find_package(CGAL REQUIRED COMPONENTS Core)
+  include( ${CGAL_USE_FILE} )
   STRING( REGEX REPLACE "[0-9]+.([0-9]+).[0-9]+" "\\1" FCL_MINOR_VERSION ${FCL_VERSION})
 
   if(FCL_MINOR_VERSION GREATER "4")
@@ -67,7 +69,7 @@ if( FCL_FOUND )
     endif()
 
     link_directories(${OPENRAVE_LINK_DIRS} ${FCL_LIBRARY_DIRS})
-    include_directories(${FCL_INCLUDE_DIRS} ${FCL_INCLUDEDIR})
+    include_directories(${FCL_INCLUDE_DIRS} ${FCL_INCLUDEDIR} ${CGAL_INCLUDE_DIRS})
     add_library(fclrave SHARED fclrave.cpp fclcollision.h fclstatistics.h fclspace.h plugindefs.h)
     target_link_libraries(fclrave libopenrave ${FCL_LIBRARIES})
     if( CMAKE_COMPILER_IS_GNUCC OR CMAKE_COMPILER_IS_GNUCXX OR COMPILER_IS_CLANG)

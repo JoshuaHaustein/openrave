@@ -6,12 +6,18 @@
 #include <boost/lexical_cast.hpp>
 #include <openrave/utils.h>
 #include <boost/function_output_iterator.hpp>
+#include <boost/functional/hash.hpp>
 #include <algorithm>
+#include <unordered_set>
+#include <functional>
 
 #include "fclspace.h"
 #include "fclmanagercache.h"
 
 #include "fclstatistics.h"
+
+#include <CGAL/Exact_predicates_exact_constructions_kernel.h>
+#include <CGAL/intersections.h>
 
 namespace fclrave {
 
@@ -918,14 +924,140 @@ private:
                 _reportcache.plink1 = plink1;
                 _reportcache.plink2 = plink2;
 
-                // TODO : eliminate the contacts points (insertion sort (std::lower) + binary_search ?) duplicated
-                // How comes that there are duplicated contacts points ?
                 if( _options & (OpenRAVE::CO_Contacts | OpenRAVE::CO_AllGeometryContacts) ) {
-                    _reportcache.contacts.resize(numContacts);
-                    for(size_t i = 0; i < numContacts; ++i) {
-                        fcl::Contact const &c = pcb->_result.getContact(i);
-                        _reportcache.contacts[i] = CollisionReport::CONTACT(ConvertVectorFromFCL(c.pos), ConvertVectorFromFCL(c.normal), c.penetration_depth);
+                    
+                    // NEW CODE - we do not trust FCL's contacts for meshes
+                    std::unordered_set<std::pair<int, int>, boost::hash<std::pair<int, int> > > checked_faces; 
+                    fcl::Vec3f const* vertices_1 = GetVertices(o1);
+                    fcl::Vec3f const* vertices_2 = GetVertices(o2);
+                    // run over fcl contacts
+                    for (size_t i = 0; i < numContacts; ++i) {
+                        const fcl::Contact& fcl_contact = pcb->_result.getContact(i);
+                        if (fcl_contact.b1 > 0 and fcl_contact.b2 > 0 and !!vertices_1 and !!vertices_2) {
+                            auto face_key = std::make_pair(fcl_contact.b1, fcl_contact.b2);
+                            auto iter = checked_faces.find(face_key);
+                            if (iter == checked_faces.end()) {
+                                checked_faces.insert(face_key);
+                                // check intersection of both faces and add contacts
+                                fcl::Triangle fcl_triangle_1 = GetTriangle(o1, fcl_contact.b1);
+                                fcl::Triangle fcl_triangle_2 = GetTriangle(o2, fcl_contact.b2);
+                                // build cgal triangle and compute intersection
+                                typedef CGAL::Exact_predicates_exact_constructions_kernel K;
+                                typedef K::Triangle_3 Triangle_3;
+                                typedef K::Point_3 Point_3;
+                                typedef K::Segment_3 Segment_3;
+                                Point_3 points_1[3];
+                                Point_3 points_2[3];
+                                fcl::Vec3f fcl_points_2[3];
+                                // run over all three vertices of the triangles
+                                for (size_t j = 0; j < 3; ++j) {
+                                    // copy triangle 1
+                                    size_t vid_1 = fcl_triangle_1[j];
+                                    fcl::Vec3f fcl_point(vertices_1[vid_1]);
+                                    fcl_point = o1->getTransform().transform(fcl_point);
+                                    points_1[j] = Point_3(fcl_point[0], fcl_point[1], fcl_point[2]);
+                                    // copy triangle 2
+                                    size_t vid_2 = fcl_triangle_2[j];
+                                    fcl_point = vertices_2[vid_2];
+                                    fcl_point = o2->getTransform().transform(fcl_point);
+                                    points_2[j] = Point_3(fcl_point[0], fcl_point[1], fcl_point[2]);
+                                    fcl_points_2[j] = fcl_point;
+                                }
+                                // std::cout << "Body 0:" << plink1->GetParent()->GetName() << " link " << plink1->GetName() << std::endl;
+                                // std::cout << "Body 1:" << plink2->GetParent()->GetName() << " link " << plink2->GetName() << std::endl;
+                                // std::cout << "Triangle 1 " << points_1[0] << ", " << points_1[1] << ", " << points_1[2] << std::endl;
+                                // std::cout << "Triangle 2 " << points_2[0] << ", " << points_2[1] << ", " << points_2[2] << std::endl;
+                                // fcl::Vec3f normal_2 = (fcl_points_2[2] - fcl_points_2[1]).cross(fcl_points_2[1] - fcl_points_2[0]);
+                                // normal_2.normalize();
+                                fcl::Vec3f normal_2 = fcl_contact.normal;  // TODO figure out how to get the correct normal (it should be of the body we test against)
+                                // from these points construct the cgal triangles
+                                Triangle_3 cgal_triangle_1(points_1[0], points_1[1], points_1[2]);
+                                Triangle_3 cgal_triangle_2(points_2[0], points_2[1], points_2[2]);
+                                auto result = intersection(cgal_triangle_1, cgal_triangle_2);
+                                if (result) {
+                                    if (const Point_3* p = boost::get<Point_3>(&*result)) {
+                                        // we have a point contact
+                                        _reportcache.contacts.emplace_back(CollisionReport::CONTACT(Vector(CGAL::to_double(p->x()),
+                                                                                                           CGAL::to_double(p->y()),
+                                                                                                           CGAL::to_double(p->z())),
+                                                                                                    ConvertVectorFromFCL(normal_2),
+                                                                                                    fcl_contact.penetration_depth));
+                                    } else if(const Segment_3* s = boost::get<Segment_3>(&*result)) {
+                                        // we have a line segment contact
+                                        Point_3 start = s->source();
+                                        _reportcache.contacts.emplace_back(CollisionReport::CONTACT(Vector(CGAL::to_double(start.x()),
+                                                                                                           CGAL::to_double(start.y()),
+                                                                                                           CGAL::to_double(start.z())),
+                                                                                                    ConvertVectorFromFCL(normal_2),
+                                                                                                    fcl_contact.penetration_depth));
+                                        Point_3 end = s->target();
+                                        _reportcache.contacts.emplace_back(CollisionReport::CONTACT(Vector(CGAL::to_double(end.x()),
+                                                                                                           CGAL::to_double(end.y()),
+                                                                                                           CGAL::to_double(end.z())),
+                                                                                                    ConvertVectorFromFCL(normal_2),
+                                                                                                    fcl_contact.penetration_depth));
+
+                                    } else if (const Triangle_3* t = boost::get<Triangle_3>(&*result)) {
+                                        // we have a triangle contact
+                                        for (int j = 0; j < 3; ++j)  {
+                                            _reportcache.contacts.emplace_back(CollisionReport::CONTACT(Vector(CGAL::to_double(t->vertex(j).x()),
+                                                                                                            CGAL::to_double(t->vertex(j).y()),
+                                                                                                            CGAL::to_double(t->vertex(j).z())),
+                                                                                                        ConvertVectorFromFCL(normal_2),
+                                                                                                        fcl_contact.penetration_depth));
+                                        }
+                                    } else {
+                                        RAVELOG_WARN("CGAL::intersection reported an unknown return type (std::vector<Point_3>??");
+                                    }
+                                } else {
+                                    RAVELOG_WARN("FCL reported a contact that does not seem to exist.");
+                                }
+                            }
+                        } else {
+                            // we have contacts between some primitives. let's trust fcl here
+                            _reportcache.contacts.emplace_back(CollisionReport::CONTACT(ConvertVectorFromFCL(fcl_contact.pos),
+                                                                                        ConvertVectorFromFCL(fcl_contact.normal),
+                                                                                        fcl_contact.penetration_depth));
+                        }
                     }
+                    // OLD CODE
+                    // For some reason there are duplicate contacts, thus we need to remove them
+                    // struct ContactHash {  // hash function for contacts
+                    //     std::hash<double> hash_fn;
+                    //     size_t operator()(const fcl::Contact& contact) const {
+                    //         // return hash_fn(contact.pos[0]) ^ hash_fn(contact.pos[1]) ^ hash_fn(contact.pos[2])
+                    //             // ^ hash_fn(contact.normal[0]) ^ hash_fn(contact.normal[1]) ^ hash_fn(contact.normal[2]);
+                    //         size_t hash_val = 0;
+                    //         boost::hash_combine(hash_val, contact.pos[0]);
+                    //         boost::hash_combine(hash_val, contact.pos[1]);
+                    //         boost::hash_combine(hash_val, contact.pos[2]);
+                    //         boost::hash_combine(hash_val, contact.normal[0]);
+                    //         boost::hash_combine(hash_val, contact.normal[1]);
+                    //         boost::hash_combine(hash_val, contact.normal[2]);
+                    //         return hash_val;
+                    //     }
+                    // };
+                    // struct ContactEquality {
+                    //     bool operator()(const fcl::Contact& a, const fcl::Contact& b) const {
+                    //         return a.pos[0] == b.pos[0] and a.pos[1] == b.pos[1] and a.pos[2] == a.pos[2] and
+                    //             a.normal[0] == b.normal[0] and a.normal[1] == b.normal[1] and a.normal[2] == b.normal[2];
+                    //     }
+                    // };
+                    // // insert all contacts into the set, runs in O(n)
+                    // std::unordered_set<fcl::Contact, ContactHash, ContactEquality> uniquify_set;
+                    // for(size_t i = 0; i < numContacts; ++i) {
+                    //     uniquify_set.insert(pcb->_result.getContact(i));
+                    // }
+                    // // extract unique contacts, runs in O(n')
+                    // numContacts = uniquify_set.size();
+                    // _reportcache.contacts.resize(numContacts);
+                    // size_t ci = 0;
+                    // for (const auto& contact : uniquify_set) {
+                    //     assert(ci < numContacts);
+                    //     _reportcache.contacts[ci] = CollisionReport::CONTACT(ConvertVectorFromFCL(contact.pos), ConvertVectorFromFCL(contact.normal),
+                    //                                                          contact.penetration_depth);
+                    //     ci += 1;
+                    // }
                 }
 
 
@@ -1021,8 +1153,8 @@ private:
         //     return false;
         // }
 
-        RAVELOG_DEBUG_FORMAT("Performing continuous collision check between links %s:%s and %s:%s",
-                             plink1->GetParent()->GetName() % plink1->GetName() % plink2->GetParent()->GetName() % plink2->GetName());
+        // RAVELOG_DEBUG_FORMAT("Performing continuous collision check between links %s:%s and %s:%s",
+        //                      plink1->GetParent()->GetName() % plink1->GetName() % plink2->GetParent()->GetName() % plink2->GetName());
 
         LinkInfoPtr plink1_info = _fclspace->GetLinkInfo(plink1), plink2_info = _fclspace->GetLinkInfo(plink2);
         fcl::Transform3f static_tf(ConvertTransformToFCL(plink2->GetTransform()));
